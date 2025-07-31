@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block content %}
+<!-- The <style> tag is now removed as all styles are in the external stylesheet -->
+<form method="post" id="meal-plan-form">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1><i class="fas fa-rocket"></i> Meal Planner</h1>
+    <div>
+      <button type="button" id="clear-plan-btn" class="btn btn-danger mr-2"><i class="fas fa-trash-alt"></i> Clear Plan</button>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Plan</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card p-3 mb-3">
+        <h5>Recipe Finder</h5>
+        <input type="search" id="recipe-search" class="form-control mb-2" placeholder="Search the cosmos...">
+        <button type="button" id="suggest-btn" class="btn btn-secondary btn-block"><i class="fas fa-meteor"></i> Suggest Recipes</button>
+      </div>
+      <div class="card p-3">
+        <h5>Recipe Tray</h5>
+        <div id="recipe-tray" class="sortable-list"></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+        {% for day in days %}{% if loop.index0 < 3 %}
+            <div class="card mb-3">
+              <div class="card-header">{{ day.strftime('%A') }}</div>
+              <div class="card-body day-slot sortable-list" id="day-{{ day.strftime('%Y-%m-%d') }}">
+                  {% set day_str = day.strftime('%Y-%m-%d') %}{% if planned_meals[day_str] %}
+                    <div class="recipe-card" data-recipe-id="{{ planned_meals[day_str].id }}">{{ planned_meals[day_str].name }}</div>{% endif %}
+              </div><input type="hidden" name="day-{{ day.strftime('%Y-%m-%d') }}" id="input-{{ day.strftime('%Y-%m-%d') }}" value="{{ planned_meals[day_str].id if planned_meals[day_str] else '' }}"></div>{% endif %}{% endfor %}</div>
+    <div class="col-md-4">
+        {% for day in days %}{% if loop.index0 >= 3 %}
+            <div class="card mb-3">
+              <div class="card-header">{{ day.strftime('%A') }}</div>
+              <div class="card-body day-slot sortable-list" id="day-{{ day.strftime('%Y-%m-%d') }}">
+                  {% set day_str = day.strftime('%Y-%m-%d') %}{% if planned_meals[day_str] %}
+                    <div class="recipe-card" data-recipe-id="{{ planned_meals[day_str].id }}">{{ planned_meals[day_str].name }}</div>{% endif %}
+              </div><input type="hidden" name="day-{{ day.strftime('%Y-%m-%d') }}" id="input-{{ day.strftime('%Y-%m-%d') }}" value="{{ planned_meals[day_str].id if planned_meals[day_str] else '' }}"></div>{% endif %}{% endfor %}</div>
+  </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (Your other const declarations remain the same)
+    const recipeTray = document.getElementById('recipe-tray');
+
+    function updateRecipeTray(recipes) {
+        recipeTray.innerHTML = '';
+        recipes.forEach(recipe => {
+            const recipeCard = document.createElement('div');
+            // UPDATED: Added 'recipe-tray-card' class for special styling
+            recipeCard.className = 'recipe-card recipe-tray-card'; 
+            recipeCard.dataset.recipeId = recipe.id;
+            recipeCard.textContent = recipe.name;
+            recipeTray.appendChild(recipeCard);
+        });
+    }
+    // ... (The rest of your JavaScript remains exactly the same)
+    const searchInput=document.getElementById("recipe-search"),suggestBtn=document.getElementById("suggest-btn"),clearPlanBtn=document.getElementById("clear-plan-btn");let searchTimeout;suggestBtn.addEventListener("click",function(){fetch("/api/suggest-recipes").then(e=>e.json()).then(e=>updateRecipeTray(e))}),searchInput.addEventListener("keyup",function(){clearTimeout(searchTimeout);const e=searchInput.value;if(e.length<2)return void(recipeTray.innerHTML="");searchTimeout=setTimeout(()=>{fetch(`/api/search-recipes?query=${encodeURIComponent(e)}`).then(e=>e.json()).then(e=>updateRecipeTray(e))},300)}),clearPlanBtn.addEventListener("click",function(){confirm("Are you sure you want to clear the entire meal plan?")&&document.querySelectorAll(".day-slot").forEach(function(e){e.innerHTML="",document.getElementById("input-"+e.id.replace("day-","")).value=""})}),new Sortable(recipeTray,{group:{name:"recipes",pull:"clone",put:!1},sort:!1}),document.querySelectorAll(".day-slot").forEach(function(e){new Sortable(e,{group:"recipes",onAdd:function(e){const t=e.item,c=t.dataset.recipeId,n=e.to.id;for(;e.to.children.length>1;)e.to.lastChild!==t?e.to.removeChild(e.to.lastChild):e.to.removeChild(e.to.firstChild);document.getElementById("input-"+n.replace("day-","")).value=c},onRemove:function(e){document.getElementById("input-"+e.from.id.replace("day-","")).value=""}})}),suggestBtn.click()});
+</script>
+{% endblock %}

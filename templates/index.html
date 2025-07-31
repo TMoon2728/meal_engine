@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="jumbotron text-center">
+    <h1 class="display-4">Welcome to Meal Engine!</h1>
+    <p class="lead">Your personal assistant for organizing recipes and planning family meals.</p>
+  </div>
+
+  <div class="card w-75 mx-auto mb-4">
+    <div class="card-header text-center">
+      <h3 class="my-0"><i class="fas fa-magic"></i> Clear Out the Fridge Assistant</h3>
+    </div>
+    <div class="card-body">
+      <p class="text-center">List the ingredients you have on hand, and the AI will invent a recipe for you!</p>
+      <div class="form-group">
+        <textarea id="fridge-ingredients" class="form-control" rows="3" placeholder="e.g., chicken breast, 1 onion, half a bell pepper, soy sauce..."></textarea>
+      </div>
+      <div class="text-center">
+        <button id="generate-recipe-btn" class="btn btn-primary">Generate Recipe</button>
+      </div>
+      <div id="fridge-result-box" class="mt-3 p-3" style="background-color: #f8f9fa; border-radius: 8px; display: none; white-space: pre-wrap;"></div>
+    </div>
+  </div>
+
+  <hr class="my-4">
+
+  {% if random_recipe %}
+  <div class="card w-75 mx-auto mb-4">
+    <div class="card-header text-center">
+      <h3 class="my-0"><i class="fas fa-star"></i> Recipe of the Day</h3>
+    </div>
+    <div class="card-body text-center">
+      <h4 class="card-title">{{ random_recipe.name }}</h4>
+      <p class="card-text">{{ random_recipe.instructions|truncate(200) }}</p>
+      <div class="mt-3">
+        <a href="{{ url_for('view_recipe', recipe_id=random_recipe.id) }}" class="btn btn-secondary">View Full Recipe</a>
+        <a href="{{ url_for('add_recipe_to_plan', recipe_id=random_recipe.id) }}" class="btn btn-primary">
+          <i class="fas fa-calendar-plus"></i> Add to Plan
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const generateBtn = document.getElementById('generate-recipe-btn');
+    const fridgeIngredients = document.getElementById('fridge-ingredients');
+    const fridgeResultBox = document.getElementById('fridge-result-box');
+
+    generateBtn.addEventListener('click', function() {
+        fridgeResultBox.style.display = 'block';
+        fridgeResultBox.textContent = '🧠 Inventing a new recipe...';
+        const data = { ingredients: fridgeIngredients.value };
+        fetch('/api/generate-from-ingredients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if(result.error) { fridgeResultBox.textContent = `Error: ${result.error}`; } 
+            else { fridgeResultBox.textContent = result.generated_recipe; }
+        })
+        .catch(error => {
+            fridgeResultBox.textContent = 'An error occurred. Please try again.';
+            console.error('Error:', error);
+        });
+    });
+});
+</script>
+{% endblock %}

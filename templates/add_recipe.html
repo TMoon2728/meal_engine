@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h1>Add New Recipe</h1>
+  <form method="post">
+    <div class="form-group">
+      <label for="name">Recipe Name</label>
+      <input type="text" class="form-control" id="name" name="name" required>
+    </div>
+    <div class="form-group">
+        <label for="servings">Servings</label>
+        <input type="number" class="form-control" id="servings" name="servings">
+    </div>
+    <div class="form-row">
+        <div class="form-group col-md-6">
+            <label for="prep_time">Prep Time</label>
+            <input type="text" class="form-control" id="prep_time" name="prep_time">
+        </div>
+        <div class="form-group col-md-6">
+            <label for="cook_time">Cook Time</label>
+            <input type="text" class="form-control" id="cook_time" name="cook_time">
+        </div>
+    </div>
+    <div class="form-group">
+      <label for="instructions">Instructions</label>
+      <textarea class="form-control" id="instructions" name="instructions" rows="10" required></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Recipe</button>
+  </form>
+{% endblock %}

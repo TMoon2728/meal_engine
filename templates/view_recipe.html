@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+  <h1>{{ recipe.name }}</h1>
+  <p><strong>Servings:</strong> {{ recipe.servings }} | <strong>Prep Time:</strong> {{ recipe.prep_time }} | <strong>Cook Time:</strong> {{ recipe.cook_time }}</p>
+
+  <hr>
+
+  <h3><i class="fas fa-shopping-basket"></i> Ingredients</h3>
+
+  <!-- Servings Scaler Form -->
+  <div class="form-inline mb-3">
+    <label for="servings-scaler" class="mr-2">Scale Servings:</label>
+    <input type="number" id="servings-scaler" class="form-control" style="width: 80px;" value="{{ recipe.servings }}" min="1">
+    <small id="original-servings" class="form-text text-muted ml-2">(Original: {{ recipe.servings }})</small>
+  </div>
+
+
+  <ul>
+    {% for item in recipe.ingredients %}
+      <!-- Add data-original-quantity and a span with an ID to each ingredient -->
+      <li data-original-quantity="{{ item.quantity }}">
+        <span id="quantity-{{ item.id }}">{{ item.quantity }}</span> {{ item.unit }} of {{ item.ingredient.name }}
+      </li>
+    {% endfor %}
+  </ul>
+
+  <hr>
+
+  <h3><i class="fas fa-utensils"></i> Instructions</h3>
+  <!-- The 'pre-wrap' style helps preserve line breaks from your instructions -->
+  <p style="white-space: pre-wrap;">{{ recipe.instructions }}</p>
+
+  <a href="{{ url_for('edit_recipe', recipe_id=recipe.id) }}" class="btn btn-secondary"><i class="fas fa-edit"></i> Edit</a>
+  <a href="{{ url_for('list_recipes') }}" class="btn btn-primary">Back to Recipes</a>
+
+
+  <!-- JavaScript for Scaling -->
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+      const scalerInput = document.getElementById('servings-scaler');
+      // Use parseFloat to ensure we are working with numbers
+      const originalServings = parseFloat("{{ recipe.servings or 1 }}");
+
+      scalerInput.addEventListener('input', function() {
+          const newServings = parseFloat(scalerInput.value);
+
+          // Check for valid numbers to prevent errors
+          if (newServings > 0 && originalServings > 0) {
+              const scaleFactor = newServings / originalServings;
+
+              document.querySelectorAll('li[data-original-quantity]').forEach(function(li) {
+                  const baseQuantity = parseFloat(li.getAttribute('data-original-quantity'));
+                  let newQuantity = baseQuantity * scaleFactor;
+
+                  // Round to 2 decimal places, but show as a whole number if possible (e.g., 2 instead of 2.00)
+                  if (newQuantity % 1 === 0) {
+                      li.querySelector('span').textContent = newQuantity.toFixed(0);
+                  } else {
+                      li.querySelector('span').textContent = newQuantity.toFixed(2);
+                  }
+              });
+          }
+      });
+  });
+  </script>
+
+{% endblock %}

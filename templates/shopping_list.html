@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1><i class="fas fa-cart-arrow-down"></i> Smart Shopping List</h1>
+  <p class="text-muted">Calculated based on your meal plan and current pantry inventory.</p>
+
+  <div class="row">
+    <!-- Column 1: What You Need to Buy -->
+    <div class="col-md-8">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5>What You Need to Buy</h5>
+        </div>
+        <div class="card-body">
+          {% if ingredients_to_buy %}
+            <ul class="list-group list-group-flush">
+              {% for name, details in ingredients_to_buy.items() %}
+                <li class="list-group-item shopping-item d-flex align-items-center">
+                  <input type="checkbox" class="mr-3 item-checkbox">
+                  <span class="item-text flex-grow-1">
+                    {% if details.quantity %}
+                      Buy <strong>{{ "%.2f"|format(details.quantity) }}</strong> {{ ', '.join(details.units) }} of <strong>{{ name }}</strong>
+                    {% else %}
+                      <strong>{{ name }}</strong> <span class="badge badge-warning">{{ ', '.join(details.units) }}</span>
+                    {% endif %}
+                  </span>
+                  <div class="btn-group" role="group">
+                    <a href="https://www.walmart.com/search?q={{ name|urlencode }}" target="_blank" class="btn btn-primary btn-sm" title="Search Walmart"><i class="fas fa-search"></i> W</a>
+                    <a href="https://www.dillons.com/search?query={{ name|urlencode }}" target="_blank" class="btn btn-secondary btn-sm" title="Search Dillon's"><i class="fas fa-search"></i> D</a>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p>Looks like you have everything you need for this week's plan!</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 2: What's Already in Your Pantry -->
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5>In Your Pantry (For This Week)</h5>
+        </div>
+        <div class="card-body">
+          {% if ingredients_in_pantry %}
+            <ul class="list-group list-group-flush">
+              {% for name, item in ingredients_in_pantry.items() %}
+                <li class="list-group-item text-muted">
+                  <i class="fas fa-check-circle text-success"></i>
+                  You have {{ item.pantry_item.quantity }} {{ item.pantry_item.unit }} of <strong>{{ name }}</strong>
+                  <small>(Stock: {{ item.pantry_item.stock_level }})</small>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p>None of this week's ingredients are in your pantry.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (Your checkbox JavaScript remains the same and will work)
+});
+</script>
+{% endblock %}

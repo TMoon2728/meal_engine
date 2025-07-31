@@ -1,0 +1,112 @@
+/* Import a clean, modern font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+/* --- Polished Light Blue Theme --- */
+:root {
+    --primary-blue: #3a7bd5;
+    --secondary-blue: #357abd;
+    --light-bg: #b0c4de;
+    --card-bg: #ffffff;
+    --text-dark: #2c3e50;
+    --text-light: #5a6a7a;
+    --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 400;
+    background-color: var(--light-bg);
+    color: var(--text-dark);
+}
+
+/* (All other styles remain the same) */
+.navbar { background-color: var(--primary-blue) !important; box-shadow: var(--shadow); }
+.navbar-brand, .nav-link { color: #ffffff !important; font-weight: 600; }
+.nav-link:hover { transform: translateY(-2px); transition: transform 0.2s ease-in-out; }
+.btn { border-radius: 20px; padding: 8px 20px; border: none; font-weight: 600; transition: all 0.3s ease; }
+.btn-primary { background-color: var(--secondary-blue); color: white; }
+.btn-primary:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(58, 123, 213, 0.4); }
+.btn-danger { background-color: #e74c3c; }
+.btn-danger:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(231, 76, 60, 0.4); }
+h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
+.card, .jumbotron { background-color: var(--card-bg); border: none; border-radius: 12px; box-shadow: var(--shadow); }
+.card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); }
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+.recipe-list-card { padding: 20px; text-align: center; }
+.recipe-list-card h5 { margin-bottom: 15px; }
+#recipe-tray { background-color: #eef2f7; border: 2px dashed #aed9ff; }
+.recipe-tray-card { background-color: #ffffff; border: 1px solid #ddd; color: var(--text-dark); cursor: grab; transition: all 0.2s ease-in-out; }
+.recipe-tray-card:hover { transform: scale(1.05); border-color: var(--primary-blue); box-shadow: 0 0 15px rgba(58, 123, 213, 0.3); }
+.day-slot .recipe-card { background-color: var(--primary-blue); color: white; border: none; }
+.day-slot.sortable-ghost { background-color: #cce5ff !important; border-style: solid; }
+.sortable-drag { cursor: grabbing !important; transform: rotate(-3deg); box-shadow: 0 10px 30px rgba(0,0,0,0.2); opacity: 0.95; }
+.shopping-item.completed { background-color: #f8f9fa; opacity: 0.6; }
+.shopping-item.completed .item-text { text-decoration: line-through; color: #888; }
+
+/* NEW: Styles for the compact AI calendar-style cards */
+.ai-day-card .card-header {
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+}
+.ai-day-card .card-body {
+    padding: 0.5rem;
+    min-height: 70px; /* Gives a consistent drop zone size */
+}
+.ai-day-card .recipe-card {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+}
+/* Add this to the end of your style.css file */
+.pantry-gauge span {
+    min-width: 50px; /* Gives units like 'cups' space */
+}
+/* ADD THIS TO THE END OF YOUR style.css FILE */
+
+/* --- Polished Dropdown Menu --- */
+.dropdown-menu {
+    background-color: var(--card-bg);
+    border: none;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 0.5rem 0;
+    min-width: 250px; /* Gives the menu a more substantial feel */
+}
+
+.dropdown-item {
+    color: var(--text-dark);
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease-in-out;
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: var(--light-bg);
+    color: var(--primary-blue);
+    transform: translateX(5px);
+}
+
+/* Style for the icons inside the dropdown */
+.dropdown-item .fas {
+    width: 20px; /* Ensures all text aligns perfectly */
+    margin-right: 15px;
+    color: var(--primary-blue);
+}
+
+.dropdown-divider {
+    border-top: 1px solid #e0e0e0;
+}
+
+.dropdown-header {
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+/* Better styling for the help text */
+.dropdown-item-text {
+    white-space: normal; /* Allows text to wrap */
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
