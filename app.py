@@ -15,15 +15,12 @@ from dotenv import load_dotenv
 # --- Load API Key from .env file ---
 load_dotenv()
 
-# --- App Configuration (MUST be at the top) ---
+# --- App Configuration ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
-# CORRECTED: This now correctly uses the DATABASE_URL from Render's environment
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", 'sqlite:///meal_engine.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
-
-# CORRECTED: Initialize the database AFTER the configuration is set
 db = SQLAlchemy(app)
 
 # --- Configure AI ---
@@ -33,7 +30,7 @@ try:
 except Exception as e:
     print(f"Error configuring Google AI. Is the key in your .env file correct? Error: {e}")
 
-# --- Database Models (No Changes) ---
+# --- Database Models ---
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
@@ -74,7 +71,7 @@ class PantryItem(db.Model):
 # --- Core Routes ---
 @app.route('/')
 def index():
-    # This command needs to run within the app context to build the tables
+    # This command ensures tables are created on the first request in a new environment
     with app.app_context():
         db.create_all()
     all_recipes = Recipe.query.all()
@@ -123,11 +120,10 @@ def ai_quick_add():
         flash('A recipe with this name already exists.', 'info')
         return redirect(url_for('list_recipes'))
     prompt = (
-        f"You are a recipe database assistant. Your task is to generate a complete, typical recipe for the following dish: '{recipe_name}'. "
-        "Your response MUST be ONLY a valid JSON object. The object should have two keys: "
-        "1. 'instructions': A string containing the step-by-step cooking instructions, formatted with newline characters (\\n). "
-        "2. 'ingredients': An array of JSON objects, where each object has three keys: 'name' (string), 'quantity' (float or integer, or 0 for 'to taste'), and 'unit' (string)."
-        "Example format: {\"instructions\": \"1. Mix flour and sugar...\\n2. Bake at 350F...\", \"ingredients\": [{\"name\": \"all-purpose flour\", \"quantity\": 2, \"unit\": \"cups\"}, {\"name\": \"sugar\", \"quantity\": 1, \"unit\": \"cup\"}]}"
+        f"You are a recipe database assistant. Generate a typical recipe for: '{recipe_name}'. "
+        "Your response MUST be ONLY a valid JSON object with two keys: "
+        "1. 'instructions': A string with step-by-step instructions, using '\\n' for new lines. "
+        "2. 'ingredients': An array of objects, each with 'name' (string), 'quantity' (float/int), and 'unit' (string)."
     )
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
@@ -156,7 +152,7 @@ def ai_quick_add():
     except Exception as e:
         db.session.rollback()
         print(f"AI Quick Add Error: {e}")
-        flash('The AI failed to generate a valid recipe. It might be a complex name, please try a different one.', 'danger')
+        flash('The AI failed to generate a valid recipe. Please try a different name.', 'danger')
     return redirect(url_for('list_recipes'))
 
 
@@ -195,6 +191,8 @@ def list_ingredients():
 @app.route('/update-pantry', methods=['POST'])
 def update_pantry():
     action = request.form.get('action')
+    # This ensures we stay on the same filtered/searched page after an update
+    redirect_url = url_for('list_ingredients', filter=request.args.get('filter', 'all'), query=request.args.get('query', ''))
     if action == 'add':
         ingredient_id = int(request.form.get('ingredient_id'))
         if ingredient_id and not PantryItem.query.filter_by(ingredient_id=ingredient_id).first():
@@ -225,7 +223,7 @@ def update_pantry():
             flash(f'"{item.ingredient.name}" removed from pantry.', 'success')
             db.session.delete(item)
             db.session.commit()
-    return redirect(url_for('list_ingredients', filter=request.args.get('filter', 'all'), query=request.args.get('query', '')))
+    return redirect(redirect_url)
 
 
 # --- Individual Recipe Routes ---
@@ -437,9 +435,72 @@ def shopping_list():
 # --- CSV Upload and Export Routes ---
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
+    if request.method == 'POST':
+        if 'file' not in request.files: flash('No file part', 'danger'); return redirect(request.url)
+        file = request.files['file']
+        if file.filename == '': flash('No selected file', 'danger'); return redirect(request.url)
+        upload_type = request.form.get('upload_type')
+        if not upload_type: flash('Please select an upload type', 'danger'); return redirect(request.url)
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            try:
+                if upload_type == 'recipes':
+                    count = process_recipes_csv(filepath)
+                    flash(f'Successfully processed {count} recipes.', 'success')
+                elif upload_type == 'recipe_ingredients':
+                    count = process_recipe_ingredients_csv(filepath)
+                    flash(f'Successfully processed {count} ingredient links.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'An error occurred: {e}', 'danger')
+            return redirect(url_for('upload_file'))
     return render_template('upload.html')
 
-# (CSV Processing functions are not included in the final app per the decision to use AI Quick Add)
+def process_recipes_csv(filepath):
+    with open(filepath, mode='r', encoding='utf-8') as infile:
+        reader = csv.DictReader(infile)
+        count = 0
+        for row in reader:
+            instructions_text = row.get('instructions') or "No instructions provided."
+            recipe_id = row.get('id')
+            recipe = Recipe.query.get(recipe_id) if recipe_id else None
+            if recipe:
+                recipe.name = row.get('name')
+                recipe.servings = row.get('servings')
+                recipe.prep_time = row.get('prep_time')
+                recipe.cook_time = row.get('cook_time')
+                recipe.instructions = instructions_text
+            else:
+                new_recipe = Recipe(name=row.get('name'),servings=row.get('servings'),prep_time=row.get('prep_time'),cook_time=row.get('cook_time'),instructions=instructions_text)
+                db.session.add(new_recipe)
+            count += 1
+        db.session.commit()
+    return count
+
+def process_recipe_ingredients_csv(filepath):
+    RecipeIngredient.query.delete()
+    with open(filepath, mode='r', encoding='utf-8') as infile:
+        reader = csv.DictReader(infile)
+        count = 0
+        for row in reader:
+            recipe_id = row.get('recipe_id')
+            ingredient_name = row.get('ingredient_name', '').strip()
+            if not (recipe_id and ingredient_name): continue
+            recipe = Recipe.query.get(recipe_id)
+            if not recipe: continue
+            ingredient = Ingredient.query.filter_by(name=ingredient_name).first()
+            if not ingredient:
+                ingredient = Ingredient(name=ingredient_name)
+                db.session.add(ingredient)
+                db.session.flush()
+            new_link = RecipeIngredient(recipe_id=recipe.id, ingredient_id=ingredient.id, quantity=float(row.get('quantity', 0)), unit=row.get('unit', ''))
+            db.session.add(new_link)
+            count += 1
+        db.session.commit()
+    return count
+
 
 if __name__ == '__main__':
     with app.app_context():
