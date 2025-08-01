@@ -71,7 +71,6 @@ class PantryItem(db.Model):
 # --- Core Routes ---
 @app.route('/')
 def index():
-    # This command ensures tables are created on the first request in a new environment
     with app.app_context():
         db.create_all()
     all_recipes = Recipe.query.all()
@@ -140,12 +139,7 @@ def ai_quick_add():
                 ingredient_obj = Ingredient(name=ingredient_name)
                 db.session.add(ingredient_obj)
                 db.session.flush()
-            recipe_ingredient = RecipeIngredient(
-                recipe_id=new_recipe.id,
-                ingredient_id=ingredient_obj.id,
-                quantity=float(ing_data.get('quantity', 0)),
-                unit=ing_data.get('unit', '')
-            )
+            recipe_ingredient = RecipeIngredient(recipe_id=new_recipe.id, ingredient_id=ingredient_obj.id, quantity=float(ing_data.get('quantity', 0)), unit=ing_data.get('unit', ''))
             db.session.add(recipe_ingredient)
         db.session.commit()
         flash(f'Successfully generated and saved "{recipe_name}"!', 'success')
@@ -182,16 +176,12 @@ def list_ingredients():
     pantry_items = {item.ingredient_id: item for item in PantryItem.query.all()}
     ingredient_data = []
     for ing in filtered_ingredients:
-        ingredient_data.append({
-            'ingredient': ing,
-            'pantry_item': pantry_items.get(ing.id)
-        })
+        ingredient_data.append({'ingredient': ing, 'pantry_item': pantry_items.get(ing.id)})
     return render_template('ingredients.html', ingredient_data=ingredient_data, query=query, stock_filter=stock_filter)
 
 @app.route('/update-pantry', methods=['POST'])
 def update_pantry():
     action = request.form.get('action')
-    # This ensures we stay on the same filtered/searched page after an update
     redirect_url = url_for('list_ingredients', filter=request.args.get('filter', 'all'), query=request.args.get('query', ''))
     if action == 'add':
         ingredient_id = int(request.form.get('ingredient_id'))
@@ -432,7 +422,7 @@ def shopping_list():
     return render_template('shopping_list.html', ingredients_to_buy=to_buy, ingredients_in_pantry=in_pantry)
 
 
-# --- CSV Upload and Export Routes ---
+# --- RESTORED: CSV Upload and Export Routes ---
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
@@ -457,6 +447,29 @@ def upload_file():
                 flash(f'An error occurred: {e}', 'danger')
             return redirect(url_for('upload_file'))
     return render_template('upload.html')
+
+@app.route('/export/recipes')
+def export_recipes():
+    recipes = Recipe.query.all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['id', 'name', 'servings', 'prep_time', 'cook_time', 'instructions'])
+    for recipe in recipes:
+        writer.writerow([recipe.id, recipe.name, recipe.servings, recipe.prep_time, recipe.cook_time, recipe.instructions])
+    output.seek(0)
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=recipes.csv"})
+
+@app.route('/export/recipe-ingredients')
+def export_recipe_ingredients():
+    recipe_ingredients = RecipeIngredient.query.join(Ingredient).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['recipe_id', 'ingredient_name', 'quantity', 'unit'])
+    for ri in recipe_ingredients:
+        if ri.ingredient:
+            writer.writerow([ri.recipe_id, ri.ingredient.name, ri.quantity, ri.unit])
+    output.seek(0)
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=ingredients_for_recipes.csv"})
 
 def process_recipes_csv(filepath):
     with open(filepath, mode='r', encoding='utf-8') as infile:
