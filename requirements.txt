@@ -10,6 +10,8 @@ Flask==3.1.1
 Flask-Bcrypt==1.0.1
 Flask-Login==0.6.3
 Flask-SQLAlchemy==3.1.1
+flexcache==0.3
+flexparser==0.4
 google-ai-generativelanguage==0.6.15
 google-api-core==2.25.1
 google-api-python-client==2.177.0
@@ -27,6 +29,8 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.2
 packaging==25.0
+Pint==0.24.4
+platformdirs==4.3.8
 proto-plus==1.26.1
 protobuf==5.29.5
 psycopg2-binary==2.9.10
