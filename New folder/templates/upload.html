@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h1>Manage Data via CSV</h1>
+  <p>Export your data, edit it in a spreadsheet, and re-upload to make bulk changes.</p>
+  
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Step 1: Export Your Data</h5>
+      <p>Download your current recipe and ingredient lists as CSV files.</p>
+      <a href="{{ url_for('export_recipes') }}" class="btn btn-secondary"><i class="fas fa-file-download"></i> Export Recipes.csv</a>
+      <a href="{{ url_for('export_recipe_ingredients') }}" class="btn btn-secondary"><i class="fas fa-file-download"></i> Export Ingredients_for_Recipes.csv</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">Step 2: Upload Your Modified Files</h5>
+      <form method="post" enctype="multipart/form-data">
+        <div class="form-group">
+          <label for="file">Choose CSV File</label>
+          <input type="file" class="form-control-file" id="file" name="file" accept=".csv" required>
+        </div>
+
+        <div class="form-group">
+          <label>What kind of file are you uploading?</label>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="upload_type" id="type_recipes" value="recipes" required>
+            <label class="form-check-label" for="type_recipes">
+              Recipes File
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="upload_type" id="type_ingredients" value="recipe_ingredients">
+            <label class="form-check-label" for="type_ingredients">
+              Ingredients for Recipes File
+            </label>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-file-upload"></i> Upload</button>
+      </form>
+    </div>
+  </div>
+
+  <hr>
+  <h3>File Format Instructions</h3>
+  <p><strong>To update a recipe, keep the `id` column the same. To add a new recipe, leave the `id` column blank.</strong></p>
+  <p><strong>Important:</strong> Uploading the `ingredients_for_recipes.csv` will completely replace all ingredient links in the database. Ensure your file is complete.</p>
+{% endblock %}

@@ -1,0 +1,17 @@
+type,col2,col3,col4
+RECIPE,American Goulash,"cook noodles",5
+INGREDIENT,elbow macaroni,1.5,Pound/s
+INGREDIENT,ground beef,1.5,Pound/s
+INGREDIENT,canned tomato sauce,2,15 Oz Can, Container, Box/s"
+INGREDIENT,canned diced tomatoes,1,28 Oz Can, Container, Box/s"
+INGREDIENT,yellow onion,1,Large
+INGREDIENT,garlic,3,Clove/s
+INGREDIENT,beef broth,2,Cup/s
+INGREDIENT,shredded cheddar cheese,2,Cup/s
+RECIPE,Chicken Alfredo,"make it",5
+INGREDIENT,fettuccine pasta,1.5,Pound/s
+INGREDIENT,chicken breast,2,Pound/s
+INGREDIENT,heavy cream,2,Cup/s
+INGREDIENT,butter,1,Stick/s
+INGREDIENT,grated parmesan cheese,1.5,Cup/s
+INGREDIENT,garlic,3,Clove/s
