@@ -1,11 +1,21 @@
 {% extends 'base.html' %}
-
 {% block content %}
   <h1>Edit {{ recipe.name }}</h1>
   <form method="post">
-    <div class="form-group">
-      <label for="name">Recipe Name</label>
-      <input type="text" class="form-control" id="name" name="name" value="{{ recipe.name }}" required>
+    <div class="form-row">
+      <div class="form-group col-md-8">
+        <label for="name">Recipe Name</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{ recipe.name }}" required>
+      </div>
+      <!-- ADDED: Meal Type Dropdown -->
+      <div class="form-group col-md-4">
+        <label for="meal_type">Meal Type</label>
+        <select id="meal_type" name="meal_type" class="form-control">
+            <option value="Main Course" {% if recipe.meal_type == 'Main Course' %}selected{% endif %}>Main Course</option>
+            <option value="Side Dish" {% if recipe.meal_type == 'Side Dish' %}selected{% endif %}>Side Dish</option>
+            <option value="Dessert" {% if recipe.meal_type == 'Dessert' %}selected{% endif %}>Dessert</option>
+        </select>
+      </div>
     </div>
     <div class="form-group">
         <label for="servings">Servings</label>
@@ -41,7 +51,7 @@
           <input type="number" step="0.01" name="quantity[]" class="form-control" placeholder="Quantity" value="{{ item.quantity }}" required>
         </div>
         <div class="col">
-          <input type="text" name="unit[]" class="form-control" placeholder="Unit" value="{{ item.unit }}" required>
+          <input type="text" name="unit[]" class="form-control" placeholder="Unit" value="{{ item.unit }}">
         </div>
       </div>
       {% endfor %}

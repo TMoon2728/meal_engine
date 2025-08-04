@@ -1,0 +1,84 @@
+/* static/css/print.css */
+
+@media print {
+    /* Apply styles to the whole document for printing */
+    body {
+        font-family: 'Times New Roman', Times, serif; /* Use a serif font for better readability on paper */
+        font-size: 12pt;
+        line-height: 1.4;
+        color: #000;
+        background-color: #fff !important; /* Ensure background is white */
+    }
+
+    /* Hide all non-essential elements using a helper class */
+    .no-print,
+    nav.navbar,
+    .btn,
+    .alert,
+    form,
+    .card-header i, /* Hide icons in headers */
+    .shopping-item .btn-group, /* Hide Walmart/Dillons buttons */
+    .ai-assistant-card /* Hide AI assistant on recipe view */
+    {
+        display: none !important; /* Use !important to override other styles */
+    }
+
+    /* General print layout adjustments */
+    .container {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: none !important;
+    }
+
+    .card {
+        border: 1px solid #ccc !important;
+        box-shadow: none !important;
+        page-break-inside: avoid; /* Try to keep cards from splitting across pages */
+    }
+
+    .card-header {
+        background-color: #f8f9fa !important;
+        border-bottom: 1px solid #ccc !important;
+    }
+
+    a {
+        text-decoration: none;
+        color: #000;
+    }
+
+    /* Specific styles for Recipe View */
+    .printable-content h1, .printable-content h3 {
+        margin-top: 20px;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 5px;
+    }
+
+    .printable-content ul {
+        list-style-type: disc;
+        padding-left: 20px;
+    }
+
+    .printable-content li {
+        margin-bottom: 5px;
+    }
+
+    /* Specific styles for Shopping List */
+    .shopping-item {
+        border-bottom: 1px dashed #ccc;
+        padding: 8px 0;
+    }
+
+    .shopping-item input[type="checkbox"] {
+        /* Create a printable checkbox square */
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border: 1px solid #000;
+        vertical-align: middle;
+        margin-right: 15px;
+    }
+}

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Cooking: {{ recipe.name }}</title>
+</head>
+<body class="cooking-mode-active">
+
+<div class="cooking-container">
+    <div class="cooking-header">
+        <a href="{{ url_for('view_recipe', recipe_id=recipe.id) }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times"></i> Exit Cooking Mode</a>
+        <h3 class="mb-0">{{ recipe.name }}</h3>
+    </div>
+
+    <div class="progress">
+        <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+
+    <div class="instruction-display">
+        <p id="instruction-text">Loading...</p>
+    </div>
+
+    <div class="cooking-footer">
+        <button id="prev-step" class="btn btn-secondary btn-lg"><i class="fas fa-arrow-left"></i> Previous</button>
+        <p id="step-counter" class="step-counter">Step 1 / {{ steps|length }}</p>
+        <button id="next-step" class="btn btn-primary btn-lg">Next <i class="fas fa-arrow-right"></i></button>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const steps = {{ steps|tojson }};
+    const totalSteps = steps.length;
+    let currentStep = 0;
+
+    const instructionText = document.getElementById('instruction-text');
+    const stepCounter = document.getElementById('step-counter');
+    const prevBtn = document.getElementById('prev-step');
+    const nextBtn = document.getElementById('next-step');
+    const progressBar = document.getElementById('progress-bar');
+
+    function updateStep() {
+        instructionText.textContent = steps[currentStep];
+        stepCounter.textContent = `Step ${currentStep + 1} / ${totalSteps}`;
+
+        const progressPercentage = ((currentStep + 1) / totalSteps) * 100;
+        progressBar.style.width = `${progressPercentage}%`;
+        progressBar.setAttribute('aria-valuenow', progressPercentage);
+
+        // *** THIS IS THE FIX ***
+        // The "Previous" button is correctly disabled on the first step.
+        // The "Next" button will no longer be disabled on the last step.
+        prevBtn.disabled = currentStep === 0;
+
+        if (currentStep === totalSteps - 1) {
+            nextBtn.innerHTML = 'Finish <i class="fas fa-check"></i>';
+        } else {
+            nextBtn.innerHTML = 'Next <i class="fas fa-arrow-right"></i>';
+        }
+    }
+
+    prevBtn.addEventListener('click', () => {
+        if (currentStep > 0) {
+            currentStep--;
+            updateStep();
+        }
+    });
+
+    nextBtn.addEventListener('click', () => {
+        if (currentStep < totalSteps - 1) {
+            currentStep++;
+            updateStep();
+        } else {
+            // This now correctly triggers when the "Finish" button is clicked
+            window.location.href = "{{ url_for('view_recipe', recipe_id=recipe.id) }}";
+        }
+    });
+    
+    // --- Screen Wake Lock API ---
+    let wakeLock = null;
+    const requestWakeLock = async () => {
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Screen Wake Lock is active!');
+                
+                wakeLock.addEventListener('release', () => {
+                    console.log('Screen Wake Lock was released');
+                });
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
+        } else {
+            console.log('Wake Lock API not supported.');
+        }
+    };
+
+    requestWakeLock();
+    updateStep(); // Initial load
+});
+</script>
+
+</body>
+</html>
