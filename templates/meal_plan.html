@@ -2,10 +2,10 @@
 {% block content %}
 <form method="post" id="meal-plan-form">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1><i class="fas fa-rocket"></i> Meal Planner</h1>
+    <h1><i class="fas fa-calendar-alt"></i> Full Day Planner</h1>
     <div>
       <button type="button" id="clear-plan-btn" class="btn btn-danger mr-2"><i class="fas fa-trash-alt"></i> Clear Plan</button>
-      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Plan</button>
+      <button type="submit" id="save-plan-btn" class="btn btn-primary"><i class="fas fa-save"></i> Save Plan</button>
     </div>
   </div>
   <div class="row">
@@ -37,21 +37,21 @@
             <div class="card-body">
                 <div class="tab-content" id="recipe-tray-container">
                     <div class="tab-pane fade show active" id="main-tray" role="tabpanel">
-                        <div class="sortable-list recipe-tray" data-group-name="main-course-group" style="min-height: 200px;">
+                        <div class="sortable-list recipe-tray" data-group-name="recipes" style="min-height: 200px;">
                             {% for recipe in recipes_by_type['Main Course'] %}
                             <div class="recipe-card recipe-tray-card meal-type-main-course" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}</div>
                             {% endfor %}
                         </div>
                     </div>
                     <div class="tab-pane fade" id="side-tray" role="tabpanel">
-                        <div class="sortable-list recipe-tray" data-group-name="side-dish-group" style="min-height: 200px;">
+                        <div class="sortable-list recipe-tray" data-group-name="recipes" style="min-height: 200px;">
                             {% for recipe in recipes_by_type['Side Dish'] %}
                             <div class="recipe-card recipe-tray-card meal-type-side-dish" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}</div>
                             {% endfor %}
                         </div>
                     </div>
                     <div class="tab-pane fade" id="dessert-tray" role="tabpanel">
-                        <div class="sortable-list recipe-tray" data-group-name="dessert-group" style="min-height: 200px;">
+                        <div class="sortable-list recipe-tray" data-group-name="recipes" style="min-height: 200px;">
                             {% for recipe in recipes_by_type['Dessert'] %}
                             <div class="recipe-card recipe-tray-card meal-type-dessert" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}</div>
                             {% endfor %}
@@ -63,7 +63,7 @@
       </div>
     </div>
     <!-- Right Column: Calendar -->
-    <div class="col-lg-9">
+    <div class="col-lg-9" id="calendar-column">
       <div class="d-flex flex-wrap">
         {% for day in days %}
           {% set day_str = day.strftime('%Y-%m-%d') %}
@@ -71,17 +71,18 @@
               <div class="card day-card">
                 <div class="card-header text-center">{{ day.strftime('%A') }}</div>
                 <div class="card-body day-card-body">
-                  <h6 class="meal-type-header">Main</h6>
-                  <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-main" data-group-name="main-course-group">
-                    {% for recipe in planned_meals[day_str]['Main Course'] %}<div class="recipe-card meal-type-main-course" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}</div>{% endfor %}
+                  <!-- NEW: Breakfast, Lunch, and Dinner Slots -->
+                  <h6 class="meal-type-header">Breakfast</h6>
+                  <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-Breakfast" data-group-name="recipes">
+                    {% for recipe in planned_meals[day_str]['Breakfast'] %}<div class="recipe-card meal-type-{{ recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}<span class="remove-recipe-btn">×</span></div>{% endfor %}
                   </div>
-                  <h6 class="meal-type-header mt-2">Sides</h6>
-                  <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-side" data-group-name="side-dish-group">
-                    {% for recipe in planned_meals[day_str]['Side Dish'] %}<div class="recipe-card meal-type-side-dish" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}</div>{% endfor %}
+                  <h6 class="meal-type-header mt-2">Lunch</h6>
+                  <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-Lunch" data-group-name="recipes">
+                    {% for recipe in planned_meals[day_str]['Lunch'] %}<div class="recipe-card meal-type-{{ recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}<span class="remove-recipe-btn">×</span></div>{% endfor %}
                   </div>
-                  <h6 class="meal-type-header mt-2">Dessert</h6>
-                  <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-dessert" data-group-name="dessert-group">
-                     {% for recipe in planned_meals[day_str]['Dessert'] %}<div class="recipe-card meal-type-dessert" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}</div>{% endfor %}
+                  <h6 class="meal-type-header mt-2">Dinner</h6>
+                  <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-Dinner" data-group-name="recipes">
+                     {% for recipe in planned_meals[day_str]['Dinner'] %}<div class="recipe-card meal-type-{{ recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ recipe.id }}" data-meal-type="{{ recipe.meal_type }}">{{ recipe.name }}<span class="remove-recipe-btn">×</span></div>{% endfor %}
                   </div>
                 </div>
                 <div class="hidden-inputs" id="input-container-{{ day_str }}"></div>
@@ -95,48 +96,85 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- Drag and Drop Logic ---
+    const saveButton = document.getElementById('save-plan-btn');
+    saveButton.disabled = true;
+
+    function markPlanAsChanged() {
+        if (saveButton.disabled) {
+            saveButton.disabled = false;
+        }
+    }
+
+    // --- UPDATED: updateHiddenInputs now works for all slots ---
     function updateHiddenInputsForDay(dayCard) {
         if (!dayCard) return;
         const inputContainer = dayCard.querySelector('.hidden-inputs');
-        if (!inputContainer) return;
-        
-        const dayStr = inputContainer.id.replace('input-container-', '');
-        
         inputContainer.innerHTML = ''; 
         
-        dayCard.querySelectorAll('.recipe-card').forEach(card => {
-            const recipeId = card.dataset.recipeId;
-            const hiddenInput = document.createElement('input');
-            hiddenInput.type = 'hidden';
-            hiddenInput.name = `day-${dayStr}[]`;
-            hiddenInput.value = recipeId;
-            inputContainer.appendChild(hiddenInput);
+        dayCard.querySelectorAll('.meal-type-slot').forEach(slot => {
+            const slotName = slot.id.split('-').pop(); // Gets 'Breakfast', 'Lunch', or 'Dinner'
+            const dayStr = slot.id.substring(4, 14);
+
+            slot.querySelectorAll('.recipe-card').forEach(card => {
+                const recipeId = card.dataset.recipeId;
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                // Input name now includes the slot, e.g., day-2025-08-04-Dinner[]
+                hiddenInput.name = `day-${dayStr}-${slotName}[]`;
+                hiddenInput.value = recipeId;
+                inputContainer.appendChild(hiddenInput);
+            });
         });
     }
 
-    function initializeSortable(container, groupName, canPut) {
+    function addRemoveButton(card) {
+        if (card.querySelector('.remove-recipe-btn')) return;
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'remove-recipe-btn';
+        removeBtn.innerHTML = '×';
+        card.appendChild(removeBtn);
+    }
+
+    function initializeSortable(container, groupName) {
+        const isTray = container.classList.contains('recipe-tray');
         new Sortable(container, {
-            group: { name: groupName, pull: 'clone', put: canPut },
+            group: { name: groupName, pull: isTray ? 'clone' : true, put: !isTray },
             sort: true,
             onAdd: function(evt) {
-                const mealType = evt.item.dataset.mealType;
-                evt.item.className = `recipe-card meal-type-${mealType.toLowerCase().replace(' ', '-')}`;
+                const newItem = evt.item;
+                const mealType = newItem.dataset.mealType;
+                newItem.className = `recipe-card meal-type-${mealType.toLowerCase().replace(' ', '-')}`;
+                addRemoveButton(newItem);
+
                 updateHiddenInputsForDay(evt.to.closest('.day-card'));
+                markPlanAsChanged();
             },
             onRemove: function(evt) {
                 updateHiddenInputsForDay(evt.from.closest('.day-card'));
+                markPlanAsChanged();
             },
             onUpdate: function(evt) {
                  updateHiddenInputsForDay(evt.from.closest('.day-card'));
+                 markPlanAsChanged();
             }
         });
     }
 
-    document.querySelectorAll('.recipe-tray').forEach(tray => initializeSortable(tray, tray.dataset.groupName, false));
-    document.querySelectorAll('.meal-type-slot').forEach(slot => initializeSortable(slot, slot.dataset.groupName, true));
+    // Initialize all trays and slots under a single group name
+    document.querySelectorAll('.sortable-list').forEach(el => initializeSortable(el, 'recipes'));
 
-    // --- Search and Suggest Logic ---
+    document.getElementById('calendar-column').addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('remove-recipe-btn')) {
+            const cardToRemove = e.target.closest('.recipe-card');
+            const parentDayCard = cardToRemove.closest('.day-card');
+            
+            cardToRemove.remove();
+            
+            updateHiddenInputsForDay(parentDayCard);
+            markPlanAsChanged();
+        }
+    });
+
     const searchInput = document.getElementById('recipe-search');
     const suggestBtn = document.getElementById('suggest-btn');
     const allRecipesForJs = {{ recipes_for_js|tojson }};
@@ -182,13 +220,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
     });
 
-    // --- Clear Plan Button ---
     document.getElementById('clear-plan-btn').addEventListener('click', function() {
         if (confirm("Are you sure you want to clear the entire meal plan?")) {
             document.querySelectorAll('.meal-type-slot').forEach(function(slot) {
                 slot.innerHTML = '';
                 updateHiddenInputsForDay(slot.closest('.day-card'));
             });
+            markPlanAsChanged();
         }
     });
 

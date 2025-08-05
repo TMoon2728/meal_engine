@@ -47,6 +47,22 @@
                           <option value="Heart Healthy Choices">Heart Healthy Choices</option>
                         </select>
                     </div>
+                    <!-- ADDED: AI Context Options -->
+                    <div class="col-md-5 mt-2">
+                       <label>AI Directives:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="use-pantry">
+                          <label class="form-check-label" for="use-pantry">
+                            <i class="fas fa-box-open"></i> Prioritize using my pantry items
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="focus-favorites">
+                          <label class="form-check-label" for="focus-favorites">
+                            <i class="fas fa-star"></i> Focus on my highest-rated recipes (4+ stars)
+                          </label>
+                        </div>
+                    </div>
                     <div class="col-md-3">
                         <button id="build-plan-btn" class="btn btn-primary btn-block">Build My Plan</button>
                     </div>
@@ -136,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="card-body day-slot sortable-list" id="day-${dayStr}">
                         <div class="recipe-card" data-recipe-id="${recipe.id}">${recipe.name}</div>
                     </div>
-                    <input type="hidden" name="day-${dayStr}" id="input-${dayStr}" value="${recipe.id}">
+                    <input type="hidden" name="day-${dayStr}[]" id="input-${dayStr}" value="${recipe.id}">
                 </div>
             `;
             
@@ -161,11 +177,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     const item = evt.item;
                     const recipeId = item.dataset.recipeId;
                     const dayId = evt.to.id;
-                    while (evt.to.children.length > 1) {
-                        if (evt.to.lastChild !== item) { evt.to.removeChild(evt.to.lastChild); } 
-                        else { evt.to.removeChild(evt.to.firstChild); }
+                    const hiddenInput = document.getElementById('input-' + dayId.replace('day-', ''));
+                    
+                    // Clear the slot and add the new item
+                    while (evt.to.children.length > 0) {
+                        evt.to.removeChild(evt.to.lastChild);
                     }
-                    document.getElementById('input-' + dayId.replace('day-', '')).value = recipeId;
+                    evt.to.appendChild(item);
+
+                    // Update the value of the single hidden input for this day
+                    if (hiddenInput) {
+                        hiddenInput.value = recipeId;
+                    }
                 }
             });
         });
@@ -176,10 +199,13 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '<div class="text-center card p-3"><p class="lead">🧠 Contacting the AI Architect... Please wait...</p></div>';
         buildBtn.disabled = true;
 
+        const usePantry = document.getElementById('use-pantry').checked;
+        const focusFavorites = document.getElementById('focus-favorites').checked;
+
         fetch('/api/build-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ theme: themeSelect.value })
+            body: JSON.stringify({ theme: themeSelect.value, use_pantry: usePantry, focus_favorites: focusFavorites })
         })
         .then(response => response.json())
         .then(result => {

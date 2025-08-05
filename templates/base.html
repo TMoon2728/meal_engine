@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- ADDED: Link to the new print stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
     <title>Meal Engine</title>
   </head>
@@ -25,13 +24,9 @@
             <li class="nav-item"><a class="nav-link" href="{{ url_for('ai_architect') }}">AI Architect</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('shopping_list') }}">Shopping List</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('list_recipes') }}">Recipes</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('list_ingredients') }}">Your Pantry</a></li>
-            <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown">Manage Data</a>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="{{ url_for('upload_file') }}"><i class="fas fa-file-upload"></i> Upload Recipes</a>
-                </div>
-            </li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('list_ingredients') }}">Pantry</a></li>
+            <!-- NEW Household Link -->
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('household_page') }}">Household</a></li>
           {% endif %}
         </ul>
         <!-- Right-aligned login/logout buttons -->

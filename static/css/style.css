@@ -46,6 +46,9 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
 .recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
 .recipe-list-card { padding: 20px; text-align: center; position: relative; }
 .recipe-list-card h5 { margin-bottom: 15px; }
+.recipe-rating { color: #ffc107; /* Gold color for stars */ margin-bottom: 10px; }
+.star-rating-view { font-size: 1.5rem; color: #ffc107; margin-bottom: 1rem; cursor: pointer; }
+.star-rating-view .star-icon:hover { transform: scale(1.2); }
 
 /* --- Draggable Recipe Cards --- */
 .recipe-tray-card { background-color: #ffffff; border: 1px solid #ddd; color: var(--text-dark); cursor: grab; transition: all 0.2s ease-in-out; }
@@ -73,7 +76,14 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
 .dashboard-card { height: 100%; }
 
 /* --- Meal Planner --- */
-.recipe-card { padding: 8px 12px; border-radius: 8px; margin-bottom: 8px; cursor: grab; font-size: 0.9rem; }
+.recipe-card { 
+    position: relative;
+    padding: 8px 25px 8px 12px;
+    border-radius: 8px; 
+    margin-bottom: 8px; 
+    cursor: grab; 
+    font-size: 0.9rem; 
+}
 .recipe-card.meal-type-main-course { background-color: var(--primary-blue); color: white; border: 1px solid var(--primary-blue); font-weight: 600; }
 .recipe-card.meal-type-side-dish { background-color: #e9f2ff; color: var(--text-dark); border: 1px solid var(--primary-blue); }
 .recipe-card.meal-type-dessert { background-color: #f8f9fa; color: var(--text-dark); border: 1px dashed var(--secondary-blue); }
@@ -81,6 +91,34 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
 .meal-type-slot { background-color: #f8f9fa; border-radius: 8px; padding: 8px; min-height: 50px; border: 2px dashed #e9ecef; }
 .day-card-body h6 { font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px; }
 .day-column { flex: 1 0 31%; margin: 1%; }
+
+/* --- NEW / CORRECTED: Style for the in-card remove button --- */
+.remove-recipe-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    font-size: 1.6rem;
+    line-height: 1;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-light);
+    opacity: 0.4;
+    transition: all 0.2s ease-in-out;
+}
+.recipe-card:hover .remove-recipe-btn {
+    opacity: 1;
+}
+.remove-recipe-btn:hover {
+    transform: translateY(-50%) scale(1.2);
+    color: var(--danger-red);
+}
+.recipe-card.meal-type-main-course .remove-recipe-btn {
+    color: white;
+}
+.recipe-card.meal-type-main-course .remove-recipe-btn:hover {
+    color: #ffc9c9; /* A light pink/red that is visible on the blue background */
+}
 
 /* --- Cooking Mode --- */
 body.cooking-mode-active { background-color: #343a40 !important; color: #f8f9fa; }
@@ -93,9 +131,9 @@ body.cooking-mode-active .navbar { display: none !important; }
 .cooking-footer { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; margin-top: 1rem; }
 .step-counter { font-size: 1.2rem; font-weight: 600; margin: 0; }
 
-/* *** THIS IS THE DEFINITIVE FIX FOR THE TABS *** */
+/* --- TABS --- */
 #recipeTypeTab .nav-link {
-    color: var(--text-light) !important; /* Sets a visible gray color for inactive tabs */
+    color: var(--text-light) !important;
     background-color: transparent;
     border-color: transparent transparent #dee2e6 transparent;
     font-weight: 600;
@@ -105,7 +143,7 @@ body.cooking-mode-active .navbar { display: none !important; }
     color: var(--text-dark) !important;
 }
 #recipeTypeTab .nav-link.active {
-    color: var(--primary-blue) !important; /* Makes active tab text blue and bold */
+    color: var(--primary-blue) !important;
     background-color: var(--card-bg) !important;
     border-color: #dee2e6 #dee2e6 var(--card-bg) !important;
 }

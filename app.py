@@ -1,14 +1,17 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response # ADDED Response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import desc
 from datetime import date, timedelta, datetime
-import os, csv, random, json, io, re
+import os, csv, random, json, io, re, uuid
 from werkzeug.utils import secure_filename
 import google.generativeai as genai
 from dotenv import load_dotenv
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 import pint 
+
+import requests
+from bs4 import BeautifulSoup
 
 load_dotenv()
 app = Flask(__name__)
@@ -18,6 +21,32 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
+
+def convert_quantity_to_float(quantity_str):
+    if not isinstance(quantity_str, str):
+        return float(quantity_str)
+    
+    try:
+        unicodes = {'½': 0.5, '⅓': 0.33, '⅔': 0.67, '¼': 0.25, '¾': 0.75, '⅕': 0.2}
+        if quantity_str in unicodes:
+            return unicodes[quantity_str]
+
+        if ' ' in quantity_str and '/' in quantity_str:
+            parts = quantity_str.split(' ')
+            whole_num = float(parts[0])
+            frac_parts = parts[1].split('/')
+            numerator = float(frac_parts[0])
+            denominator = float(frac_parts[1])
+            return whole_num + (numerator / denominator)
+        elif '/' in quantity_str:
+            frac_parts = quantity_str.split('/')
+            numerator = float(frac_parts[0])
+            denominator = float(frac_parts[1])
+            return numerator / denominator
+        else:
+            return float(quantity_str)
+    except (ValueError, ZeroDivisionError):
+        return 0.0
 
 # --- Pint Unit Registry, Context, and Sanitizer ---
 ureg = pint.UnitRegistry()
@@ -78,26 +107,39 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 try:
     genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-    print("DEBUG: Google AI configured successfully.")
 except Exception as e:
     print(f"Error configuring Google AI: {e}")
 
-# --- Database Models ---
+class Household(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    recipes = db.relationship('Recipe', backref='household', lazy=True, cascade="all, delete-orphan")
+    pantry_items = db.relationship('PantryItem', backref='household', lazy=True, cascade="all, delete-orphan")
+    meal_plans = db.relationship('MealPlan', backref='household', lazy=True, cascade="all, delete-orphan")
+    invitations = db.relationship('HouseholdInvitation', backref='household', lazy=True, cascade="all, delete-orphan")
+
+class HouseholdInvitation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
+    token = db.Column(db.String(100), unique=True, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
-    recipes = db.relationship('Recipe', backref='author', lazy=True, cascade="all, delete-orphan")
-    pantry_items = db.relationship('PantryItem', backref='owner', lazy=True, cascade="all, delete-orphan")
-    meal_plans = db.relationship('MealPlan', backref='planner', lazy=True, cascade="all, delete-orphan")
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'))
+    household = db.relationship('Household', backref='members')
+    recipes = db.relationship('Recipe', backref='author', lazy=True)
 
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     instructions = db.Column(db.Text, nullable=False)
     servings = db.Column(db.Integer)
@@ -105,6 +147,7 @@ class Recipe(db.Model):
     cook_time = db.Column(db.String(50))
     is_favorite = db.Column(db.Boolean, default=False, nullable=False)
     meal_type = db.Column(db.String(50), nullable=False, default='Main Course')
+    rating = db.Column(db.Integer, nullable=False, default=0)
     ingredients = db.relationship('RecipeIngredient', backref='recipe', lazy=True, cascade="all, delete-orphan")
 
 class Ingredient(db.Model):
@@ -112,7 +155,7 @@ class Ingredient(db.Model):
     name = db.Column(db.String(100), nullable=False, unique=True)
     category = db.Column(db.String(50), nullable=True, default='Pantry')
     recipe_links = db.relationship('RecipeIngredient', backref='ingredient', lazy=True)
-    pantry_item = db.relationship('PantryItem', backref='ingredient', uselist=False, cascade="all, delete-orphan")
+    pantry_items = db.relationship('PantryItem', backref='ingredient', lazy=True)
 
 class RecipeIngredient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -123,14 +166,15 @@ class RecipeIngredient(db.Model):
 
 class MealPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
     meal_date = db.Column(db.Date, nullable=False)
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
     recipe = db.relationship('Recipe')
+    meal_slot = db.Column(db.String(50), nullable=False, default='Dinner')
 
 class PantryItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
     ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredient.id'), nullable=False)
     quantity = db.Column(db.Float, nullable=False, default=0)
     unit = db.Column(db.String(50), nullable=True)
@@ -164,11 +208,17 @@ def signup():
         if User.query.filter_by(email=email).first():
             flash('Email address already in use.', 'warning')
             return redirect(url_for('signup'))
+        
+        new_household = Household(name=f"{email.split('@')[0]}'s Household")
+        db.session.add(new_household)
+        db.session.flush()
+
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        user = User(email=email, password=hashed_password)
+        user = User(email=email, password=hashed_password, household_id=new_household.id)
         db.session.add(user)
         db.session.commit()
-        flash('Your account has been created! You are now able to log in.', 'success')
+        
+        flash('Your account has been created! You can now log in.', 'success')
         return redirect(url_for('login'))
     return render_template('signup.html')
 
@@ -186,7 +236,11 @@ def index():
     with app.app_context():
         db.create_all()
     
-    todays_meal_plan = MealPlan.query.filter_by(planner=current_user, meal_date=date.today()).first()
+    todays_meal_plan = MealPlan.query.filter_by(
+        household_id=current_user.household_id, 
+        meal_date=date.today(),
+        meal_slot='Dinner'
+    ).first()
 
     return render_template('index.html', todays_meal_plan=todays_meal_plan)
 
@@ -199,15 +253,17 @@ def list_recipes():
     favorites_filter_active = request.args.get('filter') == 'favorites'
     sort_order = request.args.get('sort', 'asc')
     
-    base_query = Recipe.query.filter_by(author=current_user)
+    base_query = Recipe.query.filter_by(household_id=current_user.household_id)
     
     if sort_order == 'desc':
         base_query = base_query.order_by(desc(Recipe.name))
+    elif sort_order == 'rating':
+        base_query = base_query.order_by(desc(Recipe.rating), Recipe.name)
     else:
         base_query = base_query.order_by(Recipe.name)
 
     if pantry_filter_active:
-        pantry_items_in_stock = PantryItem.query.filter_by(owner=current_user).filter(PantryItem.quantity > 0).all()
+        pantry_items_in_stock = PantryItem.query.filter_by(household_id=current_user.household_id).filter(PantryItem.quantity > 0).all()
         pantry_ingredient_ids = {item.ingredient_id for item in pantry_items_in_stock}
         all_user_recipes = base_query.all()
         recipes = []
@@ -232,66 +288,60 @@ def ai_quick_add():
     if not recipe_name:
         flash('Please enter a recipe name.', 'warning')
         return redirect(url_for('list_recipes'))
-    if Recipe.query.filter_by(name=recipe_name, author=current_user).first():
+    if Recipe.query.filter_by(name=recipe_name, household_id=current_user.household_id).first():
         flash('A recipe with this name already exists.', 'info')
         return redirect(url_for('list_recipes'))
 
-    prompt = (f"""
-        Generate a typical recipe for: '{recipe_name}'.
-        Your response MUST be ONLY a valid JSON object wrapped in ```json ... ```.
-        The JSON object should have three keys: "name", "instructions", and "ingredients".
-        - "name" should be the recipe's title.
-        - "instructions" should be a single string with steps separated by '\\n'.
-        - "ingredients" must be an array of objects, each with "name", "quantity", and "unit".
-        - Infer the meal_type ('Main Course', 'Side Dish', or 'Dessert').
-
-        Here is a perfect example of the required output format:
-        ```json
-        {{
-          "name": "Simple Spaghetti Bolognese",
-          "meal_type": "Main Course",
-          "instructions": "1. Heat olive oil in a large pan.\\n2. Add diced onions and garlic, cook until softened.\\n3. Add ground beef and cook until browned.\\n4. Stir in crushed tomatoes and simmer for 20 minutes.",
-          "ingredients": [
-            {{ "name": "Spaghetti", "quantity": 1, "unit": "box" }},
-            {{ "name": "Ground Beef", "quantity": 1, "unit": "lb" }},
-            {{ "name": "Olive Oil", "quantity": 2, "unit": "tbsp" }},
-            {{ "name": "Onion", "quantity": 1, "unit": "" }},
-            {{ "name": "Garlic", "quantity": 2, "unit": "cloves" }},
-            {{ "name": "Crushed Tomatoes", "quantity": 28, "unit": "oz" }}
-          ]
-        }}
-        ```
-    """)
+    prompt = f"""
+        Generate a standard recipe for "{recipe_name}".
+        Your output must be a single, valid JSON object with the following keys:
+        - "name": The title of the recipe.
+        - "instructions": A single string with steps separated by '\\n'.
+        - "meal_type": Must be one of 'Main Course', 'Side Dish', or 'Dessert'.
+        - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
+    """
+    
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
-        response = model.generate_content(prompt)
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
         
-        json_match = re.search(r"```json\s*(\{.*?\})\s*```", response.text, re.DOTALL)
-        if not json_match:
-            raise ValueError("AI response did not contain a valid JSON block.")
-            
-        recipe_data = json.loads(json_match.group(1))
+        recipe_data = json.loads(response.text)
+
+        if not recipe_data.get('name') or not recipe_data.get('instructions') or not recipe_data.get('ingredients'):
+            flash('The AI returned an incomplete recipe. Please try a different name.', 'warning')
+            return redirect(url_for('list_recipes'))
 
         new_recipe = Recipe(
             name=recipe_data['name'], 
             instructions=recipe_data['instructions'],
             meal_type=recipe_data.get('meal_type', 'Main Course'),
-            author=current_user
+            author=current_user,
+            household_id=current_user.household_id
         )
         db.session.add(new_recipe)
         db.session.flush()
 
         for ing_data in recipe_data['ingredients']:
-            ingredient_name = ing_data['name'].strip()
+            ingredient_name = ing_data.get('name', '').strip()
+            if not ingredient_name: continue
+
             ingredient_obj = Ingredient.query.filter(db.func.lower(Ingredient.name) == db.func.lower(ingredient_name)).first()
             if not ingredient_obj:
                 ingredient_obj = Ingredient(name=ingredient_name)
                 db.session.add(ingredient_obj)
                 db.session.flush()
+            
+            quantity_val = convert_quantity_to_float(ing_data.get('quantity', '0'))
+            
             recipe_ingredient = RecipeIngredient(
                 recipe_id=new_recipe.id, 
                 ingredient_id=ingredient_obj.id, 
-                quantity=float(ing_data.get('quantity', 0)), 
+                quantity=quantity_val,
                 unit=ing_data.get('unit', '')
             )
             db.session.add(recipe_ingredient)
@@ -302,9 +352,10 @@ def ai_quick_add():
         db.session.rollback()
         print(f"AI Quick Add Error: {e}")
         print(f"AI Response Text:\n{response.text if 'response' in locals() else 'No response object'}")
-        flash('The AI failed to generate a valid recipe. Please try a different name.', 'danger')
+        flash('The AI failed to generate a valid recipe. Please try again.', 'danger')
         
     return redirect(url_for('list_recipes'))
+
 
 @app.route('/ingredients', methods=['GET', 'POST'])
 @login_required
@@ -325,7 +376,7 @@ def list_ingredients():
     base_query = Ingredient.query
     if query: base_query = base_query.filter(Ingredient.name.ilike(f"%{query}%"))
     
-    pantry_items = {item.ingredient_id: item for item in PantryItem.query.filter_by(owner=current_user).all()}
+    pantry_items = {item.ingredient_id: item for item in PantryItem.query.filter_by(household_id=current_user.household_id).all()}
     
     if stock_filter == 'in_pantry':
         ingredient_ids_in_pantry = pantry_items.keys()
@@ -345,7 +396,7 @@ def update_ingredient_category():
     ingredient_id = request.form.get('ingredient_id')
     new_category = request.form.get('category')
     
-    ingredient = Ingredient.query.get(ingredient_id)
+    ingredient = db.session.get(Ingredient, ingredient_id)
     if ingredient:
         ingredient.category = new_category
         db.session.commit()
@@ -364,8 +415,8 @@ def update_pantry():
         ingredient_id = int(request.form.get('ingredient_id'))
         quantity = float(request.form.get('quantity', 1))
         unit = request.form.get('unit', '')
-        if ingredient_id and not PantryItem.query.filter_by(ingredient_id=ingredient_id, user_id=current_user.id).first():
-            new_item = PantryItem(ingredient_id=ingredient_id, quantity=quantity, unit=unit, owner=current_user)
+        if ingredient_id and not PantryItem.query.filter_by(ingredient_id=ingredient_id, household_id=current_user.household_id).first():
+            new_item = PantryItem(ingredient_id=ingredient_id, quantity=quantity, unit=unit, household_id=current_user.household_id)
             db.session.add(new_item)
             db.session.commit()
             flash(f'"{new_item.ingredient.name}" added to pantry.', 'success')
@@ -374,7 +425,7 @@ def update_pantry():
         pantry_item_id = request.form.get('pantry_item_id')
         quantity = float(request.form.get('quantity', 0))
         unit = request.form.get('unit', '')
-        item = PantryItem.query.filter_by(id=pantry_item_id, owner=current_user).first()
+        item = PantryItem.query.filter_by(id=pantry_item_id, household_id=current_user.household_id).first()
         if item:
             item.quantity = quantity
             item.unit = unit
@@ -383,7 +434,7 @@ def update_pantry():
     
     elif action == 'delete':
         pantry_item_id = request.form.get('pantry_item_id')
-        item = PantryItem.query.filter_by(id=pantry_item_id, owner=current_user).first()
+        item = PantryItem.query.filter_by(id=pantry_item_id, household_id=current_user.household_id).first()
         if item:
             flash(f'"{item.ingredient.name}" removed from pantry.', 'success')
             db.session.delete(item)
@@ -402,31 +453,34 @@ def add_recipe():
             prep_time=request.form.get('prep_time'), 
             cook_time=request.form.get('cook_time'),
             meal_type=request.form.get('meal_type'),
-            author=current_user
+            author=current_user,
+            household_id=current_user.household_id
         )
         db.session.add(new_recipe)
         db.session.commit()
         flash('Recipe added successfully! Please add its ingredients below.', 'success')
         return redirect(url_for('edit_recipe', recipe_id=new_recipe.id))
-    return render_template('add_recipe.html')
+    
+    # This route no longer needs to prefill from GET requests, so we pass an empty dict
+    return render_template('add_recipe.html', prefill={})
 
 @app.route('/recipe/<int:recipe_id>')
 @login_required
 def view_recipe(recipe_id):
-    recipe = Recipe.query.filter_by(id=recipe_id, author=current_user).first_or_404()
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
     return render_template('view_recipe.html', recipe=recipe)
 
 @app.route('/recipe/<int:recipe_id>/cook')
 @login_required
 def cook_recipe(recipe_id):
-    recipe = Recipe.query.get_or_404(recipe_id)
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
     steps = [step.strip() for step in recipe.instructions.strip().split('\n') if step.strip()]
     return render_template('cooking_mode.html', recipe=recipe, steps=steps)
 
 @app.route('/recipe/<int:recipe_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_recipe(recipe_id):
-    recipe = Recipe.query.filter_by(id=recipe_id, author=current_user).first_or_404()
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
     ingredients = Ingredient.query.order_by(Ingredient.name).all()
     if request.method == 'POST':
         recipe.name = request.form.get('name')
@@ -452,7 +506,7 @@ def edit_recipe(recipe_id):
 @app.route('/recipe/<int:recipe_id>/delete', methods=['POST'])
 @login_required
 def delete_recipe(recipe_id):
-    recipe = Recipe.query.filter_by(id=recipe_id, author=current_user).first_or_404()
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
     db.session.delete(recipe)
     db.session.commit()
     flash('Recipe deleted successfully!', 'success')
@@ -465,29 +519,190 @@ def ai_architect():
     start_of_week = today - timedelta(days=today.weekday())
     return render_template('ai_architect.html', today=today, start_of_week=start_of_week)
 
+@app.route('/household', methods=['GET', 'POST'])
+@login_required
+def household_page():
+    if request.method == 'POST':
+        HouseholdInvitation.query.filter_by(household_id=current_user.household_id).delete()
+        
+        token = str(uuid.uuid4())
+        expires = datetime.utcnow() + timedelta(hours=24)
+        new_invitation = HouseholdInvitation(household_id=current_user.household_id, token=token, expires_at=expires)
+        db.session.add(new_invitation)
+        db.session.commit()
+        
+        invite_link = url_for('join_household', token=token, _external=True)
+        return jsonify({'invite_link': invite_link})
+
+    return render_template('household.html')
+
+@app.route('/join-household/<token>')
+@login_required
+def join_household(token):
+    invitation = HouseholdInvitation.query.filter_by(token=token).first()
+
+    if not invitation or invitation.expires_at < datetime.utcnow():
+        flash('This invitation link is invalid or has expired.', 'danger')
+        return redirect(url_for('household_page'))
+
+    if current_user.household_id == invitation.household_id:
+        flash('You are already a member of this household.', 'info')
+        return redirect(url_for('household_page'))
+
+    old_household = current_user.household
+    if len(old_household.members) == 1:
+        db.session.delete(old_household)
+
+    current_user.household_id = invitation.household_id
+    db.session.delete(invitation)
+    db.session.commit()
+
+    flash(f'You have successfully joined the "{invitation.household.name}" household!', 'success')
+    return redirect(url_for('household_page'))
+
+
+# --- THIS IS THE NEW WORKFLOW ---
+@app.route('/api/import-and-create-recipe', methods=['POST'])
+@login_required
+def import_and_create_recipe():
+    data = request.get_json()
+    url = data.get('url')
+    if not url:
+        return jsonify({'error': 'URL is required.'}), 400
+
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+        main_content = soup.find('main') or soup.find('article') or soup.body
+        page_text = ' '.join(main_content.get_text().split())
+
+        if len(page_text) < 100:
+             return jsonify({'error': 'Could not extract enough readable content from the URL.'}), 400
+
+        prompt = (f"""
+            Analyze the following text from a recipe webpage and extract the recipe details.
+            Your output must be a single, valid JSON object with the following keys:
+            - "name": The title of the recipe.
+            - "instructions": A single string with steps separated by '\\n'.
+            - "meal_type": Must be one of 'Main Course', 'Side Dish', or 'Dessert'.
+            - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
+        """)
+        
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        ai_response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
+        recipe_data = json.loads(ai_response.text)
+
+        if not recipe_data.get('name') or not recipe_data.get('instructions') or not recipe_data.get('ingredients'):
+            return jsonify({'error': 'The AI could not understand the recipe from that URL.'}), 400
+        
+        # All validation passed, create the recipe and ingredients
+        new_recipe = Recipe(
+            name=recipe_data['name'], 
+            instructions=recipe_data['instructions'],
+            meal_type=recipe_data.get('meal_type', 'Main Course'),
+            author=current_user,
+            household_id=current_user.household_id
+        )
+        db.session.add(new_recipe)
+        db.session.flush()
+
+        for ing_data in recipe_data['ingredients']:
+            ingredient_name = ing_data.get('name', '').strip()
+            if not ingredient_name: continue
+
+            ingredient_obj = Ingredient.query.filter(db.func.lower(Ingredient.name) == db.func.lower(ingredient_name)).first()
+            if not ingredient_obj:
+                ingredient_obj = Ingredient(name=ingredient_name)
+                db.session.add(ingredient_obj)
+                db.session.flush()
+            
+            quantity_val = convert_quantity_to_float(ing_data.get('quantity', '0'))
+            
+            recipe_ingredient = RecipeIngredient(
+                recipe_id=new_recipe.id, 
+                ingredient_id=ingredient_obj.id, 
+                quantity=quantity_val,
+                unit=ing_data.get('unit', '')
+            )
+            db.session.add(recipe_ingredient)
+        
+        db.session.commit()
+        
+        flash(f'Successfully imported "{new_recipe.name}"! Please review the details.', 'success')
+        return jsonify({'success': True, 'recipe_id': new_recipe.id})
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Failed to fetch the URL.'}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'An unexpected error occurred during import.'}), 500
+
+
 @app.route('/api/build-plan', methods=['POST'])
 @login_required
 def build_plan_api():
     data = request.get_json()
     theme = data.get('theme')
-    all_recipes = Recipe.query.filter_by(author=current_user).all()
+    use_pantry = data.get('use_pantry', False)
+    focus_favorites = data.get('focus_favorites', False)
+
+    all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     if len(all_recipes) < 7:
         return jsonify({'error': 'You need at least 7 recipes in your database to build a full week plan.'}), 400
-    recipe_list_text = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in all_recipes])
-    prompt = (f"You are a Meal Plan Architect. Analyze the recipes and select exactly 7 for the theme: '{theme}'.\n\nRecipes:\n{recipe_list_text}\n\nYour response MUST be ONLY a valid JSON array of 7 objects, each with 'id' and 'name'.")
+    
+    prompt_context = ""
+    if use_pantry:
+        pantry_items = PantryItem.query.filter_by(household_id=current_user.household_id).filter(PantryItem.quantity > 0).all()
+        if pantry_items:
+            pantry_list = ", ".join([p.ingredient.name for p in pantry_items])
+            prompt_context += f"\nCONTEXT: Please prioritize recipes that use these ingredients from the household pantry: {pantry_list}."
+    if focus_favorites:
+        favorite_recipes = Recipe.query.filter_by(household_id=current_user.household_id).filter(Recipe.rating >= 4).all()
+        if favorite_recipes:
+            fav_list = ", ".join([f'"{r.name}"' for r in favorite_recipes])
+            prompt_context += f"\nCONTEXT: The user's household loves these recipes, so try to include some of them: {fav_list}."
+
+    recipe_list_text = "\n".join([f"id: {r.id}, name: \"{r.name}\", rating: {r.rating}" for r in all_recipes])
+    prompt = (f"You are a Meal Plan Architect. Analyze the recipes and select exactly 7 for the theme: '{theme}'.{prompt_context}\n\nRecipes:\n{recipe_list_text}\n\nYour response MUST be ONLY a valid JSON array of 7 objects, each with 'id' and 'name'.")
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
         response = model.generate_content(prompt)
         plan_data = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
+        
+        valid_user_recipe_ids = {r.id for r in all_recipes}
+        for meal in plan_data:
+            if meal.get('id') not in valid_user_recipe_ids:
+                return jsonify({'error': 'The AI returned an invalid plan, suggesting a recipe you do not have. Please try generating the plan again.'}), 400
+
         if len(plan_data) != 7: raise ValueError("AI did not return 7 recipes.")
         return jsonify(plan_data)
     except Exception as e:
         return jsonify({'error': 'The AI failed to generate a valid plan. Please try again.'}), 500
 
+@app.route('/api/set-rating/<int:recipe_id>', methods=['POST'])
+@login_required
+def set_rating(recipe_id):
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
+    data = request.get_json()
+    rating = data.get('rating')
+    if rating is not None and 0 <= int(rating) <= 5:
+        recipe.rating = int(rating)
+        db.session.commit()
+        return jsonify({'success': True, 'rating': recipe.rating})
+    return jsonify({'success': False, 'message': 'Invalid rating.'}), 400
+
 @app.route('/api/toggle-favorite/<int:recipe_id>', methods=['POST'])
 @login_required
 def toggle_favorite(recipe_id):
-    recipe = Recipe.query.filter_by(id=recipe_id, author=current_user).first_or_404()
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
     recipe.is_favorite = not recipe.is_favorite
     db.session.commit()
     return jsonify({'is_favorite': recipe.is_favorite})
@@ -513,14 +728,11 @@ def remix_recipe_api():
     data = request.get_json()
     recipe_id = data.get('recipe_id')
     remix_type = data.get('remix_type')
-    recipe = Recipe.query.filter_by(id=recipe_id, author=current_user).first()
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first()
     if not recipe: return jsonify({'error': 'Recipe not found'}), 404
     ingredient_list = "\n".join([f"- {ri.quantity} {ri.unit} of {ri.ingredient.name}" for ri in recipe.ingredients])
     
-    if remix_type == "Suggest a Wine Pairing":
-        prompt = (f"Based on the following recipe, please suggest a specific wine pairing. Provide a brief explanation for your choice.\n\nRecipe: {recipe.name}\n\nIngredients:\n{ingredient_list}\n\nInstructions:\n{recipe.instructions}")
-    else:
-        prompt = (f"Please rewrite the following recipe to be '{remix_type}'. Provide a completely new version of the recipe, including a new name, a full ingredient list, and step-by-step instructions.\n\nOriginal Recipe:\n{recipe.name}\n\nIngredients:\n{ingredient_list}\n\nInstructions:\n{recipe.instructions}")
+    prompt = (f"Please rewrite the recipe '{recipe.name}' to be '{remix_type}'. Provide a completely new version: new name, full ingredient list, and step-by-step instructions.")
 
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
@@ -533,7 +745,7 @@ def remix_recipe_api():
 @app.route('/api/suggest-recipes')
 @login_required
 def suggest_recipes():
-    all_recipes = Recipe.query.filter_by(author=current_user).all()
+    all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     sample_size = min(len(all_recipes), 7)
     suggested = random.sample(all_recipes, sample_size) if sample_size > 0 else []
     return jsonify([{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in suggested])
@@ -544,17 +756,16 @@ def search_recipes_api():
     query = request.args.get('query', '')
     if query:
         search_term = f"%{query}%"
-        results = Recipe.query.filter_by(author=current_user).filter(Recipe.name.ilike(search_term)).limit(10).all()
+        results = Recipe.query.filter_by(household_id=current_user.household_id).filter(Recipe.name.ilike(search_term)).limit(10).all()
         return jsonify([{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in results])
     return jsonify([])
 
 
-# --- Meal Plan & Shopping List Routes ---
 @app.route('/api/consume-recipe/<int:recipe_id>', methods=['POST'])
 @login_required
 def consume_recipe(recipe_id):
-    recipe = Recipe.query.get_or_404(recipe_id)
-    pantry_items = {item.ingredient_id: item for item in current_user.pantry_items}
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
+    pantry_items = {item.ingredient_id: item for item in current_user.household.pantry_items}
     
     updated_items = []
     skipped_items = []
@@ -600,13 +811,13 @@ def consume_recipe(recipe_id):
 @app.route('/add-to-plan/<int:recipe_id>')
 @login_required
 def add_recipe_to_plan(recipe_id):
-    recipe = Recipe.query.filter_by(id=recipe_id, author=current_user).first_or_404()
+    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
     today = date.today()
     
-    new_plan_entry = MealPlan(meal_date=today, recipe_id=recipe.id, planner=current_user)
+    new_plan_entry = MealPlan(meal_date=today, recipe_id=recipe.id, household_id=current_user.household_id, meal_slot='Dinner')
     db.session.add(new_plan_entry)
     db.session.commit()
-    flash(f'"{recipe.name}" was added to your plan for today!', 'success')
+    flash(f'"{recipe.name}" was added to your plan for dinner today!', 'success')
     
     return redirect(url_for('meal_plan'))
 
@@ -616,41 +827,45 @@ def add_recipe_to_plan(recipe_id):
 def meal_plan():
     today = date.today()
     start_of_week = today - timedelta(days=today.weekday())
+
     if request.method == 'POST':
         end_of_week = start_of_week + timedelta(days=6)
-        MealPlan.query.filter(MealPlan.planner == current_user, MealPlan.meal_date.between(start_of_week, end_of_week)).delete()
+        MealPlan.query.filter(
+            MealPlan.household_id == current_user.household_id, 
+            MealPlan.meal_date.between(start_of_week, end_of_week)
+        ).delete()
         
         for i in range(7):
             current_day = start_of_week + timedelta(days=i)
             day_str = current_day.strftime('%Y-%m-%d')
             
-            recipe_ids = request.form.getlist(f'day-{day_str}[]')
-            if not recipe_ids:
-                single_id = request.form.get(f'day-{day_str}')
-                if single_id:
-                    recipe_ids = [single_id]
-
-            for recipe_id in recipe_ids:
-                if recipe_id and recipe_id.isdigit():
-                    meal_plan_entry = MealPlan(meal_date=current_day, recipe_id=int(recipe_id), planner=current_user)
-                    db.session.add(meal_plan_entry)
+            for slot in ['Breakfast', 'Lunch', 'Dinner']:
+                recipe_ids = request.form.getlist(f'day-{day_str}-{slot}[]')
+                for recipe_id in recipe_ids:
+                    if recipe_id and recipe_id.isdigit():
+                        meal_plan_entry = MealPlan(
+                            meal_date=current_day, 
+                            recipe_id=int(recipe_id), 
+                            household_id=current_user.household_id,
+                            meal_slot=slot
+                        )
+                        db.session.add(meal_plan_entry)
 
         db.session.commit()
         flash('Meal plan saved successfully!', 'success')
         return redirect(url_for('meal_plan'))
 
     days_of_week = [(start_of_week + timedelta(days=i)) for i in range(7)]
+    all_meals = MealPlan.query.filter_by(household_id=current_user.household_id).filter(MealPlan.meal_date.between(start_of_week, start_of_week + timedelta(days=6))).all()
     
-    all_meals = MealPlan.query.filter(MealPlan.planner == current_user, MealPlan.meal_date.between(start_of_week, start_of_week + timedelta(days=6))).all()
-    
-    planned_meals = {day.strftime('%Y-%m-%d'): {'Main Course': [], 'Side Dish': [], 'Dessert': []} for day in days_of_week}
+    planned_meals = {day.strftime('%Y-%m-%d'): {'Breakfast': [], 'Lunch': [], 'Dinner': []} for day in days_of_week}
     for meal in all_meals:
-        day_str = meal.meal_date.strftime('%Y-%m-%d')
-        meal_type = meal.recipe.meal_type
-        if meal_type in planned_meals[day_str]:
-            planned_meals[day_str][meal_type].append(meal.recipe)
+        if meal.recipe:
+            day_str = meal.meal_date.strftime('%Y-%m-%d')
+            if meal.meal_slot in planned_meals[day_str]:
+                planned_meals[day_str][meal.meal_slot].append(meal.recipe)
 
-    all_recipes = Recipe.query.filter_by(author=current_user).order_by(Recipe.name).all()
+    all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).order_by(Recipe.name).all()
     
     recipes_by_type = {
         'Main Course': [r for r in all_recipes if r.meal_type == 'Main Course'],
@@ -677,7 +892,7 @@ def shopping_list():
     start_of_week = today - timedelta(days=today.weekday())
     end_of_week = start_of_week + timedelta(days=6)
     
-    planned_meals = MealPlan.query.filter_by(planner=current_user).filter(MealPlan.meal_date.between(start_of_week, end_of_week)).all()
+    planned_meals = MealPlan.query.filter_by(household_id=current_user.household_id).filter(MealPlan.meal_date.between(start_of_week, end_of_week)).all()
     required = {}
     for meal in planned_meals:
         if meal.recipe:
@@ -690,7 +905,7 @@ def shopping_list():
                 required[ing_key]['quantity'] += item.quantity
                 required[ing_key]['units'].add(item.unit)
 
-    pantry_stock = {item.ingredient_id: item for item in PantryItem.query.filter_by(owner=current_user).all()}
+    pantry_stock = {item.ingredient_id: item for item in PantryItem.query.filter_by(household_id=current_user.household_id).all()}
     
     to_buy = {}
     in_pantry = {}
@@ -713,8 +928,7 @@ def shopping_list():
                     required_qty = needed_qty_val * ureg(recipe_unit_str)
                     pantry_qty = pantry_item.quantity * ureg(pantry_unit_str)
                     
-                    if not required_qty.is_compatible_with(pantry_qty):
-                        raise pint.errors.DimensionalityError(required_qty.units, pantry_qty.units)
+                    if not required_qty.is_compatible_with(pantry_qty): raise pint.errors.DimensionalityError(required_qty.units, pantry_qty.units)
 
                     pantry_qty_converted = pantry_qty.to(required_qty.units)
                     
@@ -725,13 +939,7 @@ def shopping_list():
                         buy_details = {'quantity': amount_to_buy.magnitude, 'units': {str(amount_to_buy.units)}, 'note': None, 'category': ing_category or 'Other'}
 
                 except Exception:
-                    if pantry_unit_str == recipe_unit_str:
-                        if pantry_item.quantity >= needed_qty_val:
-                            should_buy = False
-                        else:
-                            buy_details = {'quantity': needed_qty_val - pantry_item.quantity, 'units': {recipe_unit_str}, 'note': None, 'category': ing_category or 'Other'}
-                    else:
-                        buy_details['note'] = f"Unit Mismatch! Check pantry: you have {pantry_item.quantity} {pantry_item.unit or ''}"
+                    buy_details['note'] = f"Unit Mismatch! Check pantry: you have {pantry_item.quantity} {pantry_item.unit or ''}"
 
         if should_buy:
             to_buy[ing_name] = buy_details
@@ -747,23 +955,16 @@ def shopping_list():
                            grouped_list=grouped_list,
                            ingredients_in_pantry=in_pantry)
 
-
-# --- CSV Upload and Export Routes ---
-@app.route('/upload', methods=['GET', 'POST'])
-@login_required
-def upload_file():
-    return render_template('upload.html')
-
 @app.route('/export/recipes')
 @login_required
 def export_recipes():
-    recipes = Recipe.query.filter_by(author=current_user).all()
+    recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     output = io.StringIO()
     writer = csv.writer(output)
     
-    writer.writerow(['id', 'name', 'instructions', 'servings', 'prep_time', 'cook_time', 'meal_type', 'is_favorite'])
+    writer.writerow(['id', 'name', 'instructions', 'servings', 'prep_time', 'cook_time', 'meal_type', 'is_favorite', 'rating', 'author_email'])
     for recipe in recipes:
-        writer.writerow([recipe.id, recipe.name, recipe.instructions, recipe.servings, recipe.prep_time, recipe.cook_time, recipe.meal_type, recipe.is_favorite])
+        writer.writerow([recipe.id, recipe.name, recipe.instructions, recipe.servings, recipe.prep_time, recipe.cook_time, recipe.meal_type, recipe.is_favorite, recipe.rating, recipe.author.email])
     
     output.seek(0)
     return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=recipes.csv"})
@@ -771,8 +972,7 @@ def export_recipes():
 @app.route('/export/recipe_ingredients')
 @login_required
 def export_recipe_ingredients():
-    # Export all recipe-ingredient links for the current user
-    user_recipe_ids = [r.id for r in current_user.recipes]
+    user_recipe_ids = [r.id for r in current_user.household.recipes]
     recipe_ingredients = RecipeIngredient.query.filter(RecipeIngredient.recipe_id.in_(user_recipe_ids)).all()
     
     output = io.StringIO()

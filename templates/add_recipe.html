@@ -5,15 +5,14 @@
     <div class="form-row">
         <div class="form-group col-md-8">
             <label for="name">Recipe Name</label>
-            <input type="text" class="form-control" id="name" name="name" required>
+            <input type="text" class="form-control" id="name" name="name" value="{{ prefill.name }}" required>
         </div>
-        <!-- ADDED: Meal Type Dropdown -->
         <div class="form-group col-md-4">
             <label for="meal_type">Meal Type</label>
             <select id="meal_type" name="meal_type" class="form-control">
-                <option value="Main Course" selected>Main Course</option>
-                <option value="Side Dish">Side Dish</option>
-                <option value="Dessert">Dessert</option>
+                <option value="Main Course" {% if prefill.meal_type.lower() == 'main course' %}selected{% endif %}>Main Course</option>
+                <option value="Side Dish" {% if prefill.meal_type.lower() == 'side dish' %}selected{% endif %}>Side Dish</option>
+                <option value="Dessert" {% if prefill.meal_type.lower() == 'dessert' %}selected{% endif %}>Dessert</option>
             </select>
         </div>
     </div>
@@ -33,8 +32,8 @@
     </div>
     <div class="form-group">
       <label for="instructions">Instructions</label>
-      <textarea class="form-control" id="instructions" name="instructions" rows="10" required></textarea>
+      <textarea class="form-control" id="instructions" name="instructions" rows="10" required>{{ prefill.instructions }}</textarea>
     </div>
-    <button type="submit" class="btn btn-primary">Add Recipe & Ingredients</button>
+    <button type="submit" class="btn btn-primary">Save Recipe and Add Ingredients</button>
   </form>
 {% endblock %}
