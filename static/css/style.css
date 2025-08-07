@@ -12,6 +12,7 @@
     --danger-red: #e74c3c;
     --success-green: #2ecc71;
     --info-cyan: #1abc9c;
+    --snack-teal: #20c997;
     --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
@@ -87,12 +88,17 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
 .recipe-card.meal-type-main-course { background-color: var(--primary-blue); color: white; border: 1px solid var(--primary-blue); font-weight: 600; }
 .recipe-card.meal-type-side-dish { background-color: #e9f2ff; color: var(--text-dark); border: 1px solid var(--primary-blue); }
 .recipe-card.meal-type-dessert { background-color: #f8f9fa; color: var(--text-dark); border: 1px dashed var(--secondary-blue); }
-.recipe-tray-card { background-color: #f8f9fa; border: 1px solid #ddd; }
-.meal-type-slot { background-color: #f8f9fa; border-radius: 8px; padding: 8px; min-height: 50px; border: 2px dashed #e9ecef; }
-.day-card-body h6 { font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px; }
-.day-column { flex: 1 0 31%; margin: 1%; }
+.recipe-card.meal-type-snack { background-color: #e9fff8; color: var(--text-dark); border: 1px solid var(--snack-teal); }
+.recipe-card.meal-type-custom { background-color: #f1f3f5; color: var(--text-dark); border: 1px dashed #adb5bd; font-style: italic; }
 
-/* --- NEW / CORRECTED: Style for the in-card remove button --- */
+.meal-type-slot { background-color: #f8f9fa; border-radius: 8px; padding: 8px; min-height: 50px; border: 2px dashed #e9ecef; margin-bottom: 1rem; }
+.day-card-body h6 { font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px; }
+.day-column { flex: 1 0 13%; margin: 0.5%; /* Allows for 7 columns */ }
+
+.meal-made-btn { padding: 0.1rem 0.4rem; font-size: 0.7rem; line-height: 1.2; opacity: 0.5; }
+.meal-made-btn:hover { opacity: 1; }
+
+/* In-card remove button */
 .remove-recipe-btn {
     position: absolute;
     top: 50%;
@@ -120,6 +126,33 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
     color: #ffc9c9; /* A light pink/red that is visible on the blue background */
 }
 
+/* --- UPDATED: Compact styles for recipe cards in the tray --- */
+.recipe-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.recipe-tray-item {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    cursor: grab;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-bottom: 0;
+    flex-shrink: 0;
+    flex-basis: 100%;
+    text-align: center;
+    /* --- THESE ARE THE KEY CHANGES --- */
+    white-space: normal; /* Allow text to wrap */
+    overflow: visible;   /* Ensure wrapped text is not hidden */
+    text-overflow: clip; /* (or unset) Remove the ellipsis */
+    min-height: 32px;    /* Give it a little base height */
+    display: flex;       /* Use flexbox for vertical centering */
+    align-items: center;
+    justify-content: center;
+}
+
 /* --- Cooking Mode --- */
 body.cooking-mode-active { background-color: #343a40 !important; color: #f8f9fa; }
 body.cooking-mode-active .navbar { display: none !important; }
@@ -132,11 +165,18 @@ body.cooking-mode-active .navbar { display: none !important; }
 .step-counter { font-size: 1.2rem; font-weight: 600; margin: 0; }
 
 /* --- TABS --- */
+/* Minor tweaks to ensure the 2x2 layout looks good */
+.nav-tabs .nav-item {
+    margin-bottom: -1px;
+}
 #recipeTypeTab .nav-link {
     color: var(--text-light) !important;
     background-color: transparent;
     border-color: transparent transparent #dee2e6 transparent;
     font-weight: 600;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.9rem;
+    border-radius: .25rem .25rem 0 0;
 }
 #recipeTypeTab .nav-link:hover {
     border-color: transparent transparent #a2a8af transparent;

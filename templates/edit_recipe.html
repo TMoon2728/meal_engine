@@ -7,30 +7,54 @@
         <label for="name">Recipe Name</label>
         <input type="text" class="form-control" id="name" name="name" value="{{ recipe.name }}" required>
       </div>
-      <!-- ADDED: Meal Type Dropdown -->
       <div class="form-group col-md-4">
         <label for="meal_type">Meal Type</label>
         <select id="meal_type" name="meal_type" class="form-control">
             <option value="Main Course" {% if recipe.meal_type == 'Main Course' %}selected{% endif %}>Main Course</option>
             <option value="Side Dish" {% if recipe.meal_type == 'Side Dish' %}selected{% endif %}>Side Dish</option>
             <option value="Dessert" {% if recipe.meal_type == 'Dessert' %}selected{% endif %}>Dessert</option>
+            <option value="Snack" {% if recipe.meal_type == 'Snack' %}selected{% endif %}>Snack</option>
         </select>
       </div>
     </div>
-    <div class="form-group">
-        <label for="servings">Servings</label>
-        <input type="number" class="form-control" id="servings" name="servings" value="{{ recipe.servings }}">
-    </div>
     <div class="form-row">
-        <div class="form-group col-md-6">
-            <label for="prep_time">Prep Time</label>
-            <input type="text" class="form-control" id="prep_time" name="prep_time" value="{{ recipe.prep_time }}">
+        <div class="form-group col-md-4">
+            <label for="servings">Servings</label>
+            <input type="number" class="form-control" id="servings" name="servings" value="{{ recipe.servings or '' }}">
         </div>
-        <div class="form-group col-md-6">
+        <div class="form-group col-md-4">
+            <label for="prep_time">Prep Time</label>
+            <input type="text" class="form-control" id="prep_time" name="prep_time" value="{{ recipe.prep_time or '' }}">
+        </div>
+        <div class="form-group col-md-4">
             <label for="cook_time">Cook Time</label>
-            <input type="text" class="form-control" id="cook_time" name="cook_time" value="{{ recipe.cook_time }}">
+            <input type="text" class="form-control" id="cook_time" name="cook_time" value="{{ recipe.cook_time or '' }}">
         </div>
     </div>
+
+    <!-- ===== NEW: Nutritional Information Section ===== -->
+    <div class="card p-3 mb-3">
+        <h5>Nutritional Information (per serving)</h5>
+        <div class="form-row">
+            <div class="form-group col-md-3">
+                <label for="calories">Calories</label>
+                <input type="number" step="0.01" class="form-control" id="calories" name="calories" value="{{ recipe.calories or '' }}">
+            </div>
+            <div class="form-group col-md-3">
+                <label for="protein">Protein (g)</label>
+                <input type="number" step="0.01" class="form-control" id="protein" name="protein" value="{{ recipe.protein or '' }}">
+            </div>
+            <div class="form-group col-md-3">
+                <label for="fat">Fat (g)</label>
+                <input type="number" step="0.01" class="form-control" id="fat" name="fat" value="{{ recipe.fat or '' }}">
+            </div>
+            <div class="form-group col-md-3">
+                <label for="carbs">Carbs (g)</label>
+                <input type="number" step="0.01" class="form-control" id="carbs" name="carbs" value="{{ recipe.carbs or '' }}">
+            </div>
+        </div>
+    </div>
+    
     <div class="form-group">
       <label for="instructions">Instructions</label>
       <textarea class="form-control" id="instructions" name="instructions" rows="10" required>{{ recipe.instructions }}</textarea>
@@ -51,7 +75,7 @@
           <input type="number" step="0.01" name="quantity[]" class="form-control" placeholder="Quantity" value="{{ item.quantity }}" required>
         </div>
         <div class="col">
-          <input type="text" name="unit[]" class="form-control" placeholder="Unit" value="{{ item.unit }}">
+          <input type="text" name="unit[]" class="form-control" placeholder="Unit" value="{{ item.unit or '' }}">
         </div>
       </div>
       {% endfor %}

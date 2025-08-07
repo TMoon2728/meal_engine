@@ -15,13 +15,30 @@
           <h3 class="my-0"><i class="fas fa-calendar-check"></i> Dinner Tonight</h3>
         </div>
         <div class="card-body text-center d-flex flex-column justify-content-center">
+          
+          <!-- ===== THIS IS THE FIX ===== -->
           {% if todays_meal_plan %}
-            <p class="text-muted">On the plan for tonight:</p>
-            <h4 class="card-title">{{ todays_meal_plan.recipe.name }}</h4>
-            <p class="card-text">{{ todays_meal_plan.recipe.instructions|truncate(150) }}</p>
-            <div class="mt-3">
-              <a href="{{ url_for('view_recipe', recipe_id=todays_meal_plan.recipe.id) }}" class="btn btn-secondary">View Full Recipe</a>
-            </div>
+            
+            {# First, check if the meal plan entry has an actual recipe linked to it #}
+            {% if todays_meal_plan.recipe %}
+              <p class="text-muted">On the plan for tonight:</p>
+              <h4 class="card-title">{{ todays_meal_plan.recipe.name }}</h4>
+              <p class="card-text">{{ todays_meal_plan.recipe.instructions|truncate(150) }}</p>
+              <div class="mt-3">
+                <a href="{{ url_for('view_recipe', recipe_id=todays_meal_plan.recipe.id) }}" class="btn btn-secondary">View Full Recipe</a>
+              </div>
+            
+            {# Otherwise, it must be a custom item, so just display its name #}
+            {% elif todays_meal_plan.custom_item_name %}
+              <p class="text-muted">On the plan for tonight:</p>
+              <h4 class="card-title">{{ todays_meal_plan.custom_item_name }}</h4>
+              <p class="card-text">A custom item is planned. Enjoy!</p>
+              <div class="mt-3">
+                  <a href="{{ url_for('meal_plan') }}" class="btn btn-primary">Go to Meal Plan</a>
+              </div>
+
+            {% endif %}
+
           {% else %}
             <h4 class="card-title">Nothing is planned for dinner tonight!</h4>
             <p class="text-muted">Use the meal planner to schedule your next meal.</p>
@@ -29,6 +46,7 @@
               <a href="{{ url_for('meal_plan') }}" class="btn btn-primary btn-lg">Plan Tonight's Dinner</a>
             </div>
           {% endif %}
+          
         </div>
       </div>
     </div>

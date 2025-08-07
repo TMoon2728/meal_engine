@@ -24,7 +24,10 @@ bcrypt = Bcrypt(app)
 
 def convert_quantity_to_float(quantity_str):
     if not isinstance(quantity_str, str):
-        return float(quantity_str)
+        try:
+            return float(quantity_str)
+        except (ValueError, TypeError):
+            return 0.0
     
     try:
         unicodes = {'½': 0.5, '⅓': 0.33, '⅔': 0.67, '¼': 0.25, '¾': 0.75, '⅕': 0.2}
@@ -121,6 +124,9 @@ class Household(db.Model):
     pantry_items = db.relationship('PantryItem', backref='household', lazy=True, cascade="all, delete-orphan")
     meal_plans = db.relationship('MealPlan', backref='household', lazy=True, cascade="all, delete-orphan")
     invitations = db.relationship('HouseholdInvitation', backref='household', lazy=True, cascade="all, delete-orphan")
+    saved_meals = db.relationship('SavedMeal', backref='household', lazy=True, cascade="all, delete-orphan")
+    historical_plans = db.relationship('HistoricalPlan', backref='household', lazy=True, cascade="all, delete-orphan")
+
 
 class HouseholdInvitation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -149,6 +155,11 @@ class Recipe(db.Model):
     meal_type = db.Column(db.String(50), nullable=False, default='Main Course')
     rating = db.Column(db.Integer, nullable=False, default=0)
     ingredients = db.relationship('RecipeIngredient', backref='recipe', lazy=True, cascade="all, delete-orphan")
+    calories = db.Column(db.Float, nullable=True)
+    protein = db.Column(db.Float, nullable=True)
+    fat = db.Column(db.Float, nullable=True)
+    carbs = db.Column(db.Float, nullable=True)
+
 
 class Ingredient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -168,8 +179,9 @@ class MealPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
     meal_date = db.Column(db.Date, nullable=False)
-    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=True)
     recipe = db.relationship('Recipe')
+    custom_item_name = db.Column(db.String(150), nullable=True)
     meal_slot = db.Column(db.String(50), nullable=False, default='Dinner')
 
 class PantryItem(db.Model):
@@ -179,6 +191,33 @@ class PantryItem(db.Model):
     quantity = db.Column(db.Float, nullable=False, default=0)
     unit = db.Column(db.String(50), nullable=True)
     date_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SavedMeal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
+    recipes = db.relationship('Recipe', secondary='saved_meal_recipe_link')
+
+class SavedMealRecipeLink(db.Model):
+    __tablename__ = 'saved_meal_recipe_link'
+    saved_meal_id = db.Column(db.Integer, db.ForeignKey('saved_meal.id'), primary_key=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), primary_key=True)
+
+class HistoricalPlan(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
+    entries = db.relationship('HistoricalPlanEntry', backref='historical_plan', lazy=True, cascade="all, delete-orphan")
+
+class HistoricalPlanEntry(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    historical_plan_id = db.Column(db.Integer, db.ForeignKey('historical_plan.id'), nullable=False)
+    day_of_week = db.Column(db.Integer, nullable=False) # 0=Monday, 6=Sunday
+    meal_slot = db.Column(db.String(50), nullable=False)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=True)
+    custom_item_name = db.Column(db.String(150), nullable=True)
+    recipe = db.relationship('Recipe')
+
 
 # --- Routes ---
 
@@ -297,7 +336,7 @@ def ai_quick_add():
         Your output must be a single, valid JSON object with the following keys:
         - "name": The title of the recipe.
         - "instructions": A single string with steps separated by '\\n'.
-        - "meal_type": Must be one of 'Main Course', 'Side Dish', or 'Dessert'.
+        - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', or 'Snack'.
         - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
     """
     
@@ -461,7 +500,6 @@ def add_recipe():
         flash('Recipe added successfully! Please add its ingredients below.', 'success')
         return redirect(url_for('edit_recipe', recipe_id=new_recipe.id))
     
-    # This route no longer needs to prefill from GET requests, so we pass an empty dict
     return render_template('add_recipe.html', prefill={})
 
 @app.route('/recipe/<int:recipe_id>')
@@ -477,6 +515,7 @@ def cook_recipe(recipe_id):
     steps = [step.strip() for step in recipe.instructions.strip().split('\n') if step.strip()]
     return render_template('cooking_mode.html', recipe=recipe, steps=steps)
 
+# --- UPDATED edit_recipe route to save nutritional info ---
 @app.route('/recipe/<int:recipe_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_recipe(recipe_id):
@@ -490,6 +529,12 @@ def edit_recipe(recipe_id):
         recipe.cook_time = request.form.get('cook_time')
         recipe.meal_type = request.form.get('meal_type')
         
+        # Save nutritional data, converting empty strings to None
+        recipe.calories = float(request.form.get('calories')) if request.form.get('calories') else None
+        recipe.protein = float(request.form.get('protein')) if request.form.get('protein') else None
+        recipe.fat = float(request.form.get('fat')) if request.form.get('fat') else None
+        recipe.carbs = float(request.form.get('carbs')) if request.form.get('carbs') else None
+
         RecipeIngredient.query.filter_by(recipe_id=recipe.id).delete()
         ingredient_ids = request.form.getlist('ingredient[]')
         quantities = request.form.getlist('quantity[]')
@@ -511,6 +556,114 @@ def delete_recipe(recipe_id):
     db.session.commit()
     flash('Recipe deleted successfully!', 'success')
     return redirect(url_for('list_recipes'))
+
+@app.route('/saved-meals', methods=['GET', 'POST'])
+@login_required
+def saved_meals():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        if name:
+            new_saved_meal = SavedMeal(name=name, household_id=current_user.household_id)
+            db.session.add(new_saved_meal)
+            db.session.commit()
+            flash(f'Saved Meal "{name}" created. Now add recipes to it.', 'success')
+            return redirect(url_for('edit_saved_meal', saved_meal_id=new_saved_meal.id))
+    
+    all_saved_meals = SavedMeal.query.filter_by(household_id=current_user.household_id).order_by(SavedMeal.name).all()
+    return render_template('saved_meals.html', saved_meals=all_saved_meals)
+
+@app.route('/saved-meal/<int:saved_meal_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_saved_meal(saved_meal_id):
+    saved_meal = SavedMeal.query.filter_by(id=saved_meal_id, household_id=current_user.household_id).first_or_404()
+    
+    if request.method == 'POST':
+        saved_meal.name = request.form.get('name')
+        
+        new_recipe_ids = request.form.getlist('recipe_ids')
+        saved_meal.recipes = Recipe.query.filter(Recipe.id.in_(new_recipe_ids), Recipe.household_id==current_user.household_id).all()
+        
+        db.session.commit()
+        flash(f'Saved Meal "{saved_meal.name}" updated successfully!', 'success')
+        return redirect(url_for('saved_meals'))
+
+    all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).order_by(Recipe.name).all()
+    current_recipe_ids = {recipe.id for recipe in saved_meal.recipes}
+    
+    return render_template('edit_saved_meal.html', saved_meal=saved_meal, all_recipes=all_recipes, current_recipe_ids=current_recipe_ids)
+
+@app.route('/saved-meal/<int:saved_meal_id>/delete', methods=['POST'])
+@login_required
+def delete_saved_meal(saved_meal_id):
+    saved_meal = SavedMeal.query.filter_by(id=saved_meal_id, household_id=current_user.household_id).first_or_404()
+    flash(f'Saved Meal "{saved_meal.name}" has been deleted.', 'success')
+    db.session.delete(saved_meal)
+    db.session.commit()
+    return redirect(url_for('saved_meals'))
+
+@app.route('/manage-plans')
+@login_required
+def manage_plans():
+    plans = HistoricalPlan.query.filter_by(household_id=current_user.household_id).order_by(HistoricalPlan.name).all()
+    return render_template('manage_plans.html', plans=plans)
+
+@app.route('/delete-plan/<int:plan_id>', methods=['POST'])
+@login_required
+def delete_historical_plan(plan_id):
+    plan = HistoricalPlan.query.filter_by(id=plan_id, household_id=current_user.household_id).first_or_404()
+    flash(f'The plan template "{plan.name}" has been deleted.', 'success')
+    db.session.delete(plan)
+    db.session.commit()
+    return redirect(url_for('manage_plans'))
+
+
+@app.route('/meal-prep', methods=['GET', 'POST'])
+@login_required
+def meal_prep():
+    all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).order_by(Recipe.name).all()
+    
+    if request.method == 'POST':
+        recipe_ids = request.form.getlist('recipe_ids')
+        servings_list = request.form.getlist('servings')
+        
+        total_ingredients = {}
+        total_nutrition = {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
+        selected_recipes_details = []
+
+        for i, recipe_id in enumerate(recipe_ids):
+            try:
+                desired_servings = int(servings_list[i])
+                if desired_servings <= 0: continue
+
+                recipe = Recipe.query.get(int(recipe_id))
+                if not recipe or recipe.household_id != current_user.household_id: continue
+                
+                selected_recipes_details.append({'recipe': recipe, 'servings': desired_servings})
+
+                scaling_factor = desired_servings / (recipe.servings or 1)
+
+                total_nutrition['calories'] += (recipe.calories or 0) * scaling_factor
+                total_nutrition['protein'] += (recipe.protein or 0) * scaling_factor
+                total_nutrition['fat'] += (recipe.fat or 0) * scaling_factor
+                total_nutrition['carbs'] += (recipe.carbs or 0) * scaling_factor
+
+                for ing in recipe.ingredients:
+                    key = (ing.ingredient.name, ing.unit)
+                    if key not in total_ingredients:
+                        total_ingredients[key] = 0
+                    total_ingredients[key] += ing.quantity * scaling_factor
+            
+            except (ValueError, ZeroDivisionError):
+                continue
+        
+        return render_template('meal_prep.html', 
+                               recipes=all_recipes, 
+                               total_ingredients=total_ingredients,
+                               total_nutrition=total_nutrition,
+                               selected_recipes_details=selected_recipes_details)
+
+    return render_template('meal_prep.html', recipes=all_recipes)
+
 
 @app.route('/ai-architect')
 @login_required
@@ -561,7 +714,6 @@ def join_household(token):
     return redirect(url_for('household_page'))
 
 
-# --- THIS IS THE NEW WORKFLOW ---
 @app.route('/api/import-and-create-recipe', methods=['POST'])
 @login_required
 def import_and_create_recipe():
@@ -587,7 +739,7 @@ def import_and_create_recipe():
             Your output must be a single, valid JSON object with the following keys:
             - "name": The title of the recipe.
             - "instructions": A single string with steps separated by '\\n'.
-            - "meal_type": Must be one of 'Main Course', 'Side Dish', or 'Dessert'.
+            - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', or 'Snack'.
             - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
         """)
         
@@ -603,7 +755,6 @@ def import_and_create_recipe():
         if not recipe_data.get('name') or not recipe_data.get('instructions') or not recipe_data.get('ingredients'):
             return jsonify({'error': 'The AI could not understand the recipe from that URL.'}), 400
         
-        # All validation passed, create the recipe and ingredients
         new_recipe = Recipe(
             name=recipe_data['name'], 
             instructions=recipe_data['instructions'],
@@ -653,10 +804,13 @@ def build_plan_api():
     theme = data.get('theme')
     use_pantry = data.get('use_pantry', False)
     focus_favorites = data.get('focus_favorites', False)
+    takeout_days = int(data.get('takeout_days', 0))
 
+    recipes_to_select = 7 - takeout_days
     all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
-    if len(all_recipes) < 7:
-        return jsonify({'error': 'You need at least 7 recipes in your database to build a full week plan.'}), 400
+    
+    if len(all_recipes) < recipes_to_select:
+        return jsonify({'error': f'You need at least {recipes_to_select} recipes in your database to build this plan.'}), 400
     
     prompt_context = ""
     if use_pantry:
@@ -671,21 +825,43 @@ def build_plan_api():
             prompt_context += f"\nCONTEXT: The user's household loves these recipes, so try to include some of them: {fav_list}."
 
     recipe_list_text = "\n".join([f"id: {r.id}, name: \"{r.name}\", rating: {r.rating}" for r in all_recipes])
-    prompt = (f"You are a Meal Plan Architect. Analyze the recipes and select exactly 7 for the theme: '{theme}'.{prompt_context}\n\nRecipes:\n{recipe_list_text}\n\nYour response MUST be ONLY a valid JSON array of 7 objects, each with 'id' and 'name'.")
+    
+    prompt = (
+        f"You are a Meal Plan Architect. Your task is to create a 7-day meal plan for the theme: '{theme}'.\n"
+        f"You must select exactly {recipes_to_select} recipes from the provided list.{prompt_context}\n"
+        f"For the remaining {takeout_days} days, you must create placeholder entries. For these placeholders, the 'name' must be exactly 'Takeout Night' and the 'id' must be null.\n\n"
+        f"Recipes Available:\n{recipe_list_text}\n\n"
+        f"Your response MUST be ONLY a valid JSON array containing exactly 7 total entries (a mix of the {recipes_to_select} recipes you chose and the {takeout_days} 'Takeout Night' placeholders). The order of recipes and takeout nights in the array should be varied."
+    )
+    
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
         response = model.generate_content(prompt)
         plan_data = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
         
-        valid_user_recipe_ids = {r.id for r in all_recipes}
-        for meal in plan_data:
-            if meal.get('id') not in valid_user_recipe_ids:
-                return jsonify({'error': 'The AI returned an invalid plan, suggesting a recipe you do not have. Please try generating the plan again.'}), 400
+        if len(plan_data) != 7:
+            raise ValueError(f"AI did not return 7 days, it returned {len(plan_data)}.")
 
-        if len(plan_data) != 7: raise ValueError("AI did not return 7 recipes.")
+        valid_user_recipe_ids = {r.id for r in all_recipes}
+        recipe_count = 0
+        takeout_count = 0
+        
+        for meal in plan_data:
+            meal_id = meal.get('id')
+            if meal_id is None:
+                takeout_count += 1
+            elif meal_id not in valid_user_recipe_ids:
+                return jsonify({'error': 'The AI returned an invalid plan, suggesting a recipe you do not have. Please try generating the plan again.'}), 400
+            else:
+                recipe_count += 1
+
+        if recipe_count != recipes_to_select or takeout_count != takeout_days:
+             raise ValueError(f"AI returned incorrect counts. Expected {recipes_to_select} recipes and {takeout_days} takeouts, but got {recipe_count} and {takeout_count}.")
+
         return jsonify(plan_data)
     except Exception as e:
-        return jsonify({'error': 'The AI failed to generate a valid plan. Please try again.'}), 500
+        print(f"Build Plan Error: {e}")
+        return jsonify({'error': f'The AI failed to generate a valid plan. Details: {e}'}), 500
 
 @app.route('/api/set-rating/<int:recipe_id>', methods=['POST'])
 @login_required
@@ -760,6 +936,19 @@ def search_recipes_api():
         return jsonify([{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in results])
     return jsonify([])
 
+@app.route('/api/get-saved-meals')
+@login_required
+def get_saved_meals():
+    saved_meals = SavedMeal.query.filter_by(household_id=current_user.household_id).all()
+    output = []
+    for meal in saved_meals:
+        output.append({
+            'id': meal.id,
+            'name': meal.name,
+            'recipes': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in meal.recipes]
+        })
+    return jsonify(output)
+
 
 @app.route('/api/consume-recipe/<int:recipe_id>', methods=['POST'])
 @login_required
@@ -808,6 +997,78 @@ def consume_recipe(recipe_id):
         'skipped': skipped_items
     })
 
+@app.route('/api/consume-meal', methods=['POST'])
+@login_required
+def consume_meal():
+    data = request.get_json()
+    meal_date_str = data.get('meal_date')
+    meal_slot = data.get('meal_slot')
+
+    if not meal_date_str or not meal_slot:
+        return jsonify({'status': 'error', 'message': 'Missing meal_date or meal_slot.'}), 400
+
+    meal_date_obj = datetime.strptime(meal_date_str, '%Y-%m-%d').date()
+    
+    planned_meal_entries = MealPlan.query.filter_by(
+        household_id=current_user.household_id,
+        meal_date=meal_date_obj,
+        meal_slot=meal_slot,
+        recipe_id=db.not_(None)
+    ).all()
+
+    if not planned_meal_entries:
+        return jsonify({'status': 'info', 'message': 'No recipes to consume for this meal.'})
+
+    pantry_items = {item.ingredient_id: item for item in current_user.household.pantry_items}
+    updated_items = []
+    skipped_items = []
+
+    required_ingredients = {}
+    for entry in planned_meal_entries:
+        for req_ing in entry.recipe.ingredients:
+            if not req_ing.quantity: continue
+            key = (req_ing.ingredient_id, req_ing.unit)
+            if key not in required_ingredients:
+                required_ingredients[key] = {'quantity': 0, 'ingredient': req_ing.ingredient}
+            required_ingredients[key]['quantity'] += req_ing.quantity
+
+    for (ing_id, unit), details in required_ingredients.items():
+        if ing_id not in pantry_items: continue
+        
+        pantry_item = pantry_items[ing_id]
+        ing_substance = details['ingredient'].name.lower().replace(" ", "_")
+        
+        with ureg.context('cooking', substance=ing_substance):
+            try:
+                recipe_unit = sanitize_unit(unit)
+                pantry_unit = sanitize_unit(pantry_item.unit)
+                
+                required_total_qty = details['quantity'] * ureg(recipe_unit)
+                pantry_qty = pantry_item.quantity * ureg(pantry_unit)
+                
+                if not required_total_qty.is_compatible_with(pantry_qty):
+                    raise pint.errors.DimensionalityError(required_total_qty.units, pantry_qty.units)
+
+                pantry_qty_converted = pantry_qty.to(required_total_qty.units)
+                new_pantry_qty_converted = pantry_qty_converted - required_total_qty
+                new_pantry_qty_native = new_pantry_qty_converted.to(pantry_qty.units)
+                
+                pantry_item.quantity = max(0, new_pantry_qty_native.magnitude)
+                updated_items.append(details['ingredient'].name)
+
+            except Exception:
+                skipped_items.append(f"{details['ingredient'].name} (Unit conversion failed)")
+    
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'message': 'Pantry updated based on your meal.',
+        'updated': updated_items,
+        'skipped': skipped_items
+    })
+
+
 @app.route('/add-to-plan/<int:recipe_id>')
 @login_required
 def add_recipe_to_plan(recipe_id):
@@ -825,65 +1086,138 @@ def add_recipe_to_plan(recipe_id):
 @app.route('/meal-plan', methods=['GET', 'POST'])
 @login_required
 def meal_plan():
+    start_date_str = request.args.get('start_date')
     today = date.today()
-    start_of_week = today - timedelta(days=today.weekday())
+    
+    if start_date_str:
+        try:
+            start_of_week = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            start_of_week = today - timedelta(days=today.weekday())
+    else:
+        start_of_week = today - timedelta(days=today.weekday())
 
     if request.method == 'POST':
-        end_of_week = start_of_week + timedelta(days=6)
+        week_start_str = request.form.get('week_start_date')
+        week_start_date = datetime.strptime(week_start_str, '%Y-%m-%d').date()
+        end_of_week = week_start_date + timedelta(days=6)
+
         MealPlan.query.filter(
             MealPlan.household_id == current_user.household_id, 
-            MealPlan.meal_date.between(start_of_week, end_of_week)
-        ).delete()
+            MealPlan.meal_date.between(week_start_date, end_of_week)
+        ).delete(synchronize_session=False)
         
         for i in range(7):
-            current_day = start_of_week + timedelta(days=i)
+            current_day = week_start_date + timedelta(days=i)
             day_str = current_day.strftime('%Y-%m-%d')
             
-            for slot in ['Breakfast', 'Lunch', 'Dinner']:
-                recipe_ids = request.form.getlist(f'day-{day_str}-{slot}[]')
+            for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack']:
+                recipe_ids = request.form.getlist(f'day-{day_str}-{slot}-recipe[]')
                 for recipe_id in recipe_ids:
                     if recipe_id and recipe_id.isdigit():
-                        meal_plan_entry = MealPlan(
-                            meal_date=current_day, 
-                            recipe_id=int(recipe_id), 
-                            household_id=current_user.household_id,
-                            meal_slot=slot
-                        )
-                        db.session.add(meal_plan_entry)
-
+                        db.session.add(MealPlan(meal_date=current_day, recipe_id=int(recipe_id), household_id=current_user.household_id, meal_slot=slot))
+                
+                custom_items = request.form.getlist(f'day-{day_str}-{slot}-custom[]')
+                for item_name in custom_items:
+                    if item_name:
+                         db.session.add(MealPlan(meal_date=current_day, custom_item_name=item_name, household_id=current_user.household_id, meal_slot=slot))
+        
         db.session.commit()
-        flash('Meal plan saved successfully!', 'success')
-        return redirect(url_for('meal_plan'))
+
+        historical_plan_name = request.form.get('historical_plan_name')
+        if historical_plan_name:
+            new_hist_plan = HistoricalPlan(name=historical_plan_name, household_id=current_user.household_id)
+            db.session.add(new_hist_plan)
+            db.session.flush()
+
+            newly_saved_entries = MealPlan.query.filter(
+                MealPlan.household_id == current_user.household_id, 
+                MealPlan.meal_date.between(week_start_date, end_of_week)
+            ).all()
+
+            for entry in newly_saved_entries:
+                hist_entry = HistoricalPlanEntry(
+                    historical_plan_id=new_hist_plan.id,
+                    day_of_week=entry.meal_date.weekday(),
+                    meal_slot=entry.meal_slot,
+                    recipe_id=entry.recipe_id,
+                    custom_item_name=entry.custom_item_name
+                )
+                db.session.add(hist_entry)
+
+            db.session.commit()
+            flash(f'Meal plan saved and also stored as "{historical_plan_name}"!', 'success')
+        else:
+            flash('Meal plan saved successfully!', 'success')
+
+        return redirect(url_for('meal_plan', start_date=week_start_str))
+
+    end_of_week = start_of_week + timedelta(days=6)
+    prev_week_start = start_of_week - timedelta(days=7)
+    next_week_start = start_of_week + timedelta(days=7)
 
     days_of_week = [(start_of_week + timedelta(days=i)) for i in range(7)]
-    all_meals = MealPlan.query.filter_by(household_id=current_user.household_id).filter(MealPlan.meal_date.between(start_of_week, start_of_week + timedelta(days=6))).all()
+    all_meals = MealPlan.query.filter(
+        MealPlan.household_id == current_user.household_id,
+        MealPlan.meal_date.between(start_of_week, end_of_week)
+    ).all()
     
-    planned_meals = {day.strftime('%Y-%m-%d'): {'Breakfast': [], 'Lunch': [], 'Dinner': []} for day in days_of_week}
+    planned_meals = {day.strftime('%Y-%m-%d'): {'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Snack': []} for day in days_of_week}
     for meal in all_meals:
-        if meal.recipe:
-            day_str = meal.meal_date.strftime('%Y-%m-%d')
-            if meal.meal_slot in planned_meals[day_str]:
-                planned_meals[day_str][meal.meal_slot].append(meal.recipe)
+        day_str = meal.meal_date.strftime('%Y-%m-%d')
+        if day_str in planned_meals and meal.meal_slot in planned_meals[day_str]:
+            planned_meals[day_str][meal.meal_slot].append(meal)
 
     all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).order_by(Recipe.name).all()
     
     recipes_by_type = {
         'Main Course': [r for r in all_recipes if r.meal_type == 'Main Course'],
         'Side Dish': [r for r in all_recipes if r.meal_type == 'Side Dish'],
-        'Dessert': [r for r in all_recipes if r.meal_type == 'Dessert']
+        'Dessert': [r for r in all_recipes if r.meal_type == 'Dessert'],
+        'Snack': [r for r in all_recipes if r.meal_type == 'Snack']
     }
     
     recipes_for_js = {
         'Main Course': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Main Course']],
         'Side Dish': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Side Dish']],
-        'Dessert': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Dessert']]
+        'Dessert': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Dessert']],
+        'Snack': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Snack']]
     }
+
+    historical_plans = HistoricalPlan.query.filter_by(household_id=current_user.household_id).order_by(HistoricalPlan.name).all()
 
     return render_template('meal_plan.html', 
                            days=days_of_week, 
                            planned_meals=planned_meals, 
                            recipes_by_type=recipes_by_type,
-                           recipes_for_js=recipes_for_js)
+                           recipes_for_js=recipes_for_js,
+                           historical_plans=historical_plans,
+                           start_of_week=start_of_week,
+                           prev_week_start=prev_week_start,
+                           next_week_start=next_week_start)
+
+
+@app.route('/api/load-historical-plan/<int:plan_id>', methods=['GET'])
+@login_required
+def load_historical_plan(plan_id):
+    plan = HistoricalPlan.query.filter_by(id=plan_id, household_id=current_user.household_id).first_or_404()
+    
+    plan_data = {}
+    for entry in plan.entries:
+        day_key = str(entry.day_of_week)
+        if day_key not in plan_data:
+            plan_data[day_key] = {}
+        if entry.meal_slot not in plan_data[day_key]:
+            plan_data[day_key][entry.meal_slot] = []
+
+        item_data = {'type': 'custom', 'name': entry.custom_item_name}
+        if entry.recipe_id:
+            item_data = {'type': 'recipe', 'id': entry.recipe.id, 'name': entry.recipe.name, 'meal_type': entry.recipe.meal_type}
+        
+        plan_data[day_key][entry.meal_slot].append(item_data)
+
+    return jsonify(plan_data)
+
 
 @app.route('/shopping-list')
 @login_required
@@ -892,18 +1226,22 @@ def shopping_list():
     start_of_week = today - timedelta(days=today.weekday())
     end_of_week = start_of_week + timedelta(days=6)
     
-    planned_meals = MealPlan.query.filter_by(household_id=current_user.household_id).filter(MealPlan.meal_date.between(start_of_week, end_of_week)).all()
+    planned_meals = MealPlan.query.filter(
+        MealPlan.household_id == current_user.household_id, 
+        MealPlan.recipe_id.isnot(None),
+        MealPlan.meal_date.between(start_of_week, end_of_week)
+    ).all()
+
     required = {}
     for meal in planned_meals:
-        if meal.recipe:
-            for item in meal.recipe.ingredients:
-                if not item.quantity or item.quantity == 0: continue
-                
-                ing_key = (item.ingredient.id, item.ingredient.name, item.ingredient.category)
-                if ing_key not in required:
-                    required[ing_key] = {'quantity': 0, 'units': set()}
-                required[ing_key]['quantity'] += item.quantity
-                required[ing_key]['units'].add(item.unit)
+        for item in meal.recipe.ingredients:
+            if not item.quantity or item.quantity == 0: continue
+            
+            ing_key = (item.ingredient.id, item.ingredient.name, item.ingredient.category)
+            if ing_key not in required:
+                required[ing_key] = {'quantity': 0, 'units': set()}
+            required[ing_key]['quantity'] += item.quantity
+            required[ing_key]['units'].add(item.unit)
 
     pantry_stock = {item.ingredient_id: item for item in PantryItem.query.filter_by(household_id=current_user.household_id).all()}
     
