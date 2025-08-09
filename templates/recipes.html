@@ -39,37 +39,37 @@
   </div>
 
 
-  <!-- Control Bar for Search, Filter, and Sort -->
+  <!-- ===== UPDATED & CONSISTENT Control Bar for Search, Filter, and Sort ===== -->
   <div class="card p-3 mb-4 no-print">
-    <div class="row">
-        <div class="col-md-5 mb-2 mb-md-0">
-            <form method="GET" action="{{ url_for('list_recipes') }}" class="mb-0">
-                <div class="input-group">
-                    <input type="text" name="query" class="form-control" placeholder="Search your recipes..." value="{{ query or '' }}">
-                    <input type="hidden" name="filter" value="{{ request.args.get('filter', '') }}">
-                    <input type="hidden" name="sort" value="{{ request.args.get('sort', 'asc') }}">
-                    <div class="input-group-append">
-                        <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
-                    </div>
-                </div>
-            </form>
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+      
+      <!-- Search Form (Left Side) -->
+      <div class="flex-grow-1 mr-3 mb-2 mb-md-0" style="max-width: 400px;">
+        <form method="GET" action="{{ url_for('list_recipes') }}" class="input-group">
+          <input type="text" name="query" class="form-control" placeholder="Search your recipes..." value="{{ query or '' }}">
+          <input type="hidden" name="filter" value="{{ request.args.get('filter', '') }}">
+          <input type="hidden" name="sort" value="{{ request.args.get('sort', 'asc') }}">
+          <div class="input-group-append">
+            <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
+          </div>
+        </form>
+      </div>
+  
+      <!-- Button Groups (Right Side) -->
+      <div class="d-flex justify-content-end align-items-center">
+        <div class="btn-group mr-3" role="group">
+          <a href="{{ url_for('list_recipes', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if not pantry_filter_active and not favorites_filter_active %}active{% endif %}">All</a>
+          <a href="{{ url_for('list_recipes', filter='favorites', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if favorites_filter_active %}active{% endif %}"><i class="fas fa-heart"></i> Favorites</a>
+          <a href="{{ url_for('list_recipes', filter='pantry', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if pantry_filter_active %}active{% endif %}">Can Make</a>
         </div>
-        <div class="col-md-7">
-            <div class="d-flex justify-content-md-end align-items-center">
-                <div class="btn-group mr-3" role="group" aria-label="Filter recipes">
-                    <a href="{{ url_for('list_recipes', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if not pantry_filter_active and not favorites_filter_active %}active{% endif %}">All</a>
-                    <a href="{{ url_for('list_recipes', filter='favorites', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if favorites_filter_active %}active{% endif %}"><i class="fas fa-heart"></i> Favorites</a>
-                    <a href="{{ url_for('list_recipes', filter='pantry', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if pantry_filter_active %}active{% endif %}">What Can I Make?</a>
-                </div>
-                <div class="btn-group" role="group" aria-label="Sort recipes-AZ">
-                    <a href="{{ url_for('list_recipes', sort='asc', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'asc' %}active{% endif %}">A-Z</a>
-                    <a href="{{ url_for('list_recipes', sort='desc', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'desc' %}active{% endif %}">Z-A</a>
-                    <a href="{{ url_for('list_recipes', sort='rating', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'rating' %}active{% endif %}"><i class="fas fa-star"></i> Rating</a>
-                </div>
-            </div>
+        <div class="btn-group" role="group">
+          <a href="{{ url_for('list_recipes', sort='asc', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'asc' %}active{% endif %}">A-Z</a>
+          <a href="{{ url_for('list_recipes', sort='desc', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'desc' %}active{% endif %}">Z-A</a>
+          <a href="{{ url_for('list_recipes', sort='rating', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'rating' %}active{% endif %}"><i class="fas fa-star"></i> Rating</a>
         </div>
+      </div>
     </div>
-</div>
+  </div>
 
 
   {% if pantry_filter_active %}
@@ -106,7 +106,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Favorite icon toggle
     document.querySelectorAll('.favorite-icon').forEach(icon => {
         icon.addEventListener('click', function() {
             const recipeId = this.dataset.recipeId;
@@ -122,14 +121,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // AI Quick Add form submission
     document.getElementById('ai-quick-add-form').addEventListener('submit', function() {
         const button = document.getElementById('ai-generate-btn');
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     });
 
-    // --- Import from URL form submission ---
     const importForm = document.getElementById('import-url-form');
     const importBtn = document.getElementById('import-url-btn');
     const urlInput = document.getElementById('recipe-url-input');
@@ -139,7 +136,6 @@ document.addEventListener('DOMContentLoaded', function() {
         importBtn.disabled = true;
         importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-        // --- THIS IS THE FIX ---
         fetch("{{ url_for('import_and_create_recipe') }}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -150,7 +146,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.error) {
                 alert(`Error: ${data.error}`);
             } else if (data.success) {
-                // On success, redirect to the edit page for the new recipe
                 window.location.href = `/recipe/${data.recipe_id}/edit`;
             }
         })

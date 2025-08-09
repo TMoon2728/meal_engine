@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="monthly-plan-header no-print">
+    <a href="{{ url_for('monthly_plan', year=nav.prev.year, month=nav.prev.month) }}" class="btn btn-secondary">&laquo; {{ nav.prev.strftime('%B') }}</a>
+    <a href="{{ url_for('monthly_plan') }}" class="btn btn-secondary">Current Month</a>
+    <h1>{{ nav.current.strftime('%B %Y') }}</h1>
+    <a href="{{ url_for('monthly_plan', year=nav.next.year, month=nav.next.month) }}" class="btn btn-secondary">{{ nav.next.strftime('%B') }} &raquo;</a>
+    <button type="button" onclick="window.print()" class="btn btn-primary"><i class="fas fa-print"></i> Print</button>
+</div>
+
+<div id="printable-area">
+    <h1 class="print-only-title" style="display:none;">Meal Plan for {{ nav.current.strftime('%B %Y') }}</h1>
+
+    <div class="monthly-plan-container">
+        <div class="monthly-calendar-grid">
+            <!-- Calendar Header -->
+            <div class="calendar-header">Monday</div>
+            <div class="calendar-header">Tuesday</div>
+            <div class="calendar-header">Wednesday</div>
+            <div class="calendar-header">Thursday</div>
+            <div class="calendar-header">Friday</div>
+            <div class="calendar-header">Saturday</div>
+            <div class="calendar-header">Sunday</div>
+
+            <!-- Calendar Days -->
+            {% for week in calendar_data %}
+                {% for day in week %}
+                    {% set day_str = day.strftime('%Y-%m-%d') %}
+                    {% set is_current_month = day.month == nav.current.month %}
+                    <div class="calendar-day {{ 'not-current-month' if not is_current_month }}">
+                        <div class="day-number">{{ day.day }}</div>
+                        <div class="meals">
+                            {% if day_str in planned_meals %}
+                                {% for meal in planned_meals[day_str] %}
+                                    <!-- FIX: Wrap the entire item in the link for recipes -->
+                                    {% if meal.recipe %}
+                                        <a href="{{ url_for('view_recipe', recipe_id=meal.recipe.id) }}" class="meal-link">
+                                            <div class="meal-item meal-type-{{ meal.meal_slot|lower }}">
+                                                {{ meal.recipe.name }}
+                                            </div>
+                                        </a>
+                                    {% else %}
+                                        <div class="meal-item meal-type-custom">
+                                            {{ meal.custom_item_name }}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -24,7 +24,12 @@ body {
 }
 
 /* --- Main Navigation Bar --- */
-.navbar { background-color: var(--primary-blue) !important; box-shadow: var(--shadow); }
+.navbar { 
+    background-color: var(--primary-blue) !important; 
+    box-shadow: var(--shadow); 
+    /* FIX: Ensure navbar and dropdowns appear above sticky page elements */
+    z-index: 1040;
+}
 .navbar .nav-link { color: #ffffff !important; font-weight: 600; }
 .navbar .nav-link:hover { transform: translateY(-2px); transition: transform 0.2s ease-in-out; }
 
@@ -66,15 +71,52 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
 .dropdown-item:hover, .dropdown-item:focus { background-color: var(--light-bg); color: var(--primary-blue); transform: translateX(5px); }
 .dropdown-item .fas { width: 20px; margin-right: 15px; color: var(--primary-blue); }
 
+.dropdown-item-form {
+    padding: 0;
+    transition: all 0.2s ease-in-out;
+}
+.dropdown-item-form:hover, .dropdown-item-form:focus-within {
+    background-color: var(--light-bg);
+}
+.dropdown-item-form:hover .dropdown-item-button {
+    color: var(--primary-blue);
+    transform: translateX(5px);
+}
+.dropdown-item-button {
+    background: none; border: none; color: var(--text-dark); font-weight: 600; 
+    padding: 0.75rem 1.5rem; 
+    display: flex; align-items: center; width: 100%; text-align: left;
+    transition: all 0.2s ease-in-out; cursor: pointer;
+}
+.dropdown-item-button .fas {
+    width: 20px;
+    margin-right: 15px;
+    color: var(--primary-blue);
+}
+
 /* --- Favorite Icon --- */
 .favorite-icon { cursor: pointer; transition: color 0.2s ease-in-out, transform 0.2s ease-in-out; }
 .recipe-list-card .favorite-icon { position: absolute; top: 15px; right: 15px; font-size: 1.5rem; }
 .favorite-icon.fas { color: var(--danger-red); }
 .favorite-icon.far { color: var(--text-dark); }
 .favorite-icon:hover { transform: scale(1.2); }
+.recipe-actions .favorite-icon {
+    font-size: 2rem;
+    vertical-align: middle;
+    margin-right: 15px;
+}
+
 
 /* --- Dashboard --- */
 .dashboard-card { height: 100%; }
+
+/* --- AI Recipe Assistant --- */
+.ai-assistant-card {
+    border: none;
+}
+.ai-assistant-card .card-header .fa-magic {
+    color: var(--info-cyan);
+}
 
 /* --- Meal Planner --- */
 .recipe-card { 
@@ -93,24 +135,16 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
 
 .meal-type-slot { background-color: #f8f9fa; border-radius: 8px; padding: 8px; min-height: 50px; border: 2px dashed #e9ecef; margin-bottom: 1rem; }
 .day-card-body h6 { font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px; }
-.day-column { flex: 1 0 13%; margin: 0.5%; /* Allows for 7 columns */ }
+.day-column { flex: 1 0 13%; margin: 0.5%; }
 
 .meal-made-btn { padding: 0.1rem 0.4rem; font-size: 0.7rem; line-height: 1.2; opacity: 0.5; }
 .meal-made-btn:hover { opacity: 1; }
 
-/* In-card remove button */
 .remove-recipe-btn {
-    position: absolute;
-    top: 50%;
-    right: 8px;
-    transform: translateY(-50%);
-    font-size: 1.6rem;
-    line-height: 1;
-    font-weight: 600;
-    cursor: pointer;
-    color: var(--text-light);
-    opacity: 0.4;
-    transition: all 0.2s ease-in-out;
+    position: absolute; top: 50%; right: 8px;
+    transform: translateY(-50%); font-size: 1.6rem;
+    line-height: 1; font-weight: 600; cursor: pointer; color: var(--text-light);
+    opacity: 0.4; transition: all 0.2s ease-in-out;
 }
 .recipe-card:hover .remove-recipe-btn {
     opacity: 1;
@@ -123,33 +157,17 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
     color: white;
 }
 .recipe-card.meal-type-main-course .remove-recipe-btn:hover {
-    color: #ffc9c9; /* A light pink/red that is visible on the blue background */
+    color: #ffc9c9;
 }
 
-/* --- UPDATED: Compact styles for recipe cards in the tray --- */
 .recipe-tray {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: flex; flex-wrap: wrap; gap: 6px;
 }
 .recipe-tray-item {
-    padding: 4px 10px;
-    font-size: 0.8rem;
-    cursor: grab;
-    background-color: #f8f9fa;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    margin-bottom: 0;
-    flex-shrink: 0;
-    flex-basis: 100%;
-    text-align: center;
-    /* --- THESE ARE THE KEY CHANGES --- */
-    white-space: normal; /* Allow text to wrap */
-    overflow: visible;   /* Ensure wrapped text is not hidden */
-    text-overflow: clip; /* (or unset) Remove the ellipsis */
-    min-height: 32px;    /* Give it a little base height */
-    display: flex;       /* Use flexbox for vertical centering */
-    align-items: center;
+    padding: 4px 10px; font-size: 0.8rem; cursor: grab; background-color: #f8f9fa;
+    border: 1px solid #ddd; border-radius: 6px; margin-bottom: 0; flex-shrink: 0;
+    flex-basis: 100%; text-align: center; white-space: normal; overflow: visible;
+    text-overflow: clip; min-height: 32px; display: flex; align-items: center;
     justify-content: center;
 }
 
@@ -165,18 +183,13 @@ body.cooking-mode-active .navbar { display: none !important; }
 .step-counter { font-size: 1.2rem; font-weight: 600; margin: 0; }
 
 /* --- TABS --- */
-/* Minor tweaks to ensure the 2x2 layout looks good */
 .nav-tabs .nav-item {
     margin-bottom: -1px;
 }
 #recipeTypeTab .nav-link {
-    color: var(--text-light) !important;
-    background-color: transparent;
-    border-color: transparent transparent #dee2e6 transparent;
-    font-weight: 600;
-    padding: 0.5rem 0.8rem;
-    font-size: 0.9rem;
-    border-radius: .25rem .25rem 0 0;
+    color: var(--text-light) !important; background-color: transparent;
+    border-color: transparent transparent #dee2e6 transparent; font-weight: 600;
+    padding: 0.5rem 0.8rem; font-size: 0.9rem; border-radius: .25rem .25rem 0 0;
 }
 #recipeTypeTab .nav-link:hover {
     border-color: transparent transparent #a2a8af transparent;

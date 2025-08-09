@@ -10,7 +10,7 @@
                 <h5>1. Select Recipes to Prep</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Choose the recipes you want to prepare and enter the total number of servings you want to make for each.</p>
+                <p class="text-muted">Choose recipes and enter the total servings you want to make for each.</p>
                 <form method="POST">
                     <div style="height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
                         {% for recipe in recipes %}
@@ -22,7 +22,8 @@
                                     <small class="d-block text-muted">Original Servings: {{ recipe.servings or 'N/A' }}</small>
                                 </label>
                             </div>
-                            <input type="number" name="servings" class="form-control" style="width: 80px;" placeholder="Servings" min="1">
+                            <!-- FIX: The name attribute is now unique for each recipe -->
+                            <input type="number" name="servings-{{ recipe.id }}" class="form-control" style="width: 80px;" placeholder="Servings" min="1">
                         </div>
                         <hr>
                         {% endfor %}
@@ -36,25 +37,9 @@
     <!-- Right Column: Results -->
     <div class="col-md-7">
         {% if total_ingredients is defined %}
-        <div class="card mb-3">
-            <div class="card-header">
-                <h5>2. Combined Shopping List</h5>
-            </div>
-            <div class="card-body">
-                <p>This is the total amount of each ingredient you'll need for your entire prep session.</p>
-                <ul class="list-group list-group-flush">
-                    {% for (name, unit), quantity in total_ingredients.items() %}
-                    <li class="list-group-item"><strong>{{ "%.2f"|format(quantity) }}</strong> {{ unit }} of <strong>{{ name }}</strong></li>
-                    {% else %}
-                    <li class="list-group-item">No ingredients to show. Did you select any recipes and servings?</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-
         <div class="card">
             <div class="card-header">
-                <h5>3. Nutritional Totals (Entire Session)</h5>
+                <h5>2. Nutritional Totals (Entire Session)</h5>
             </div>
             <div class="card-body">
                 <p>These are the estimated nutritional values for everything you've planned to prep.</p>

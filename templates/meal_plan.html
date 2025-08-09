@@ -4,119 +4,135 @@
     <input type="hidden" name="historical_plan_name" id="historical-plan-name-input">
     <input type="hidden" name="week_start_date" value="{{ start_of_week.strftime('%Y-%m-%d') }}">
 
-    <!-- Main Action Buttons -->
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
-        <div>
-            <a href="{{ url_for('meal_plan', start_date=prev_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">&laquo; Prev Week</a>
-            <a href="{{ url_for('meal_plan', start_date=next_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">Next Week &raquo;</a>
+    <!-- ===== UPDATED HEADER ===== -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap no-print">
+        
+        <!-- Title on the left -->
+        <div class="mr-auto">
+             <h1 class="mb-0">
+                <i class="fas fa-calendar-alt"></i> Meal Plan
+                <small class="d-block text-muted" style="font-size: 1rem;">Week of {{ start_of_week.strftime('%B %d, %Y') }}</small>
+            </h1>
         </div>
-        <h1 class="mb-0 text-center mx-auto">
-            <i class="fas fa-calendar-alt"></i> Meal Plan
-            <small class="d-block text-muted" style="font-size: 1rem;">Week of {{ start_of_week.strftime('%B %d, %Y') }}</small>
-        </h1>
-        <div class="ml-auto">
+        
+        <!-- Grouped Buttons on the right -->
+        <div class="d-flex align-items-center">
+            <!-- New "Actions" Dropdown -->
             <div class="btn-group mr-2">
-                <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-history"></i> Load Plan
+                <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Actions
                 </button>
                 <div class="dropdown-menu dropdown-menu-right">
-                    {% for plan in historical_plans %}
-                    <a class="dropdown-item load-historical-plan-btn" href="#" data-plan-id="{{ plan.id }}">{{ plan.name }}</a>
-                    {% else %}
-                    <span class="dropdown-item-text">No saved historical plans.</span>
-                    {% endfor %}
+                    <button type="button" class="dropdown-item" onclick="window.print()"><i class="fas fa-print"></i> Print Plan</button>
+                    <button type="button" class="dropdown-item" id="save-historical-btn"><i class="fas fa-save"></i> Save as Template</button>
                     <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="{{ url_for('manage_plans') }}"><i class="fas fa-cog"></i> Manage Templates...</a>
+                    <button type="button" class="dropdown-item" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fas fa-history"></i> Load Template</button>
+                     <div class="dropdown-menu dropdown-menu-right">
+                        {% for plan in historical_plans %}
+                        <a class="dropdown-item load-historical-plan-btn" href="#" data-plan-id="{{ plan.id }}">{{ plan.name }}</a>
+                        {% else %}
+                        <span class="dropdown-item-text">No saved historical plans.</span>
+                        {% endfor %}
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="{{ url_for('manage_plans') }}"><i class="fas fa-cog"></i> Manage Templates...</a>
+                    </div>
+                    <button type="button" class="dropdown-item" id="clear-plan-btn"><i class="fas fa-trash-alt"></i> Clear Plan</button>
                 </div>
             </div>
-            <button type="button" id="save-historical-btn" class="btn btn-secondary mr-2"><i class="fas fa-save"></i> Save As...</button>
-            <button type="button" id="clear-plan-btn" class="btn btn-danger mr-2"><i class="fas fa-trash-alt"></i> Clear</button>
-            <button type="submit" id="save-plan-btn" class="btn btn-primary"><i class="fas fa-check"></i> Apply</button>
+
+            <!-- Navigation Buttons -->
+            <div class="btn-group mr-2">
+                <a href="{{ url_for('meal_plan', start_date=prev_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">&laquo;</a>
+                <a href="{{ url_for('meal_plan') }}" class="btn btn-secondary">Today</a>
+                <button class="btn btn-secondary" type="button" id="date-picker-trigger" title="Go to date..."><i class="fas fa-calendar-alt"></i></button>
+                <input type="text" id="date-picker-input" style="display: none;">
+                <a href="{{ url_for('meal_plan', start_date=next_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">&raquo;</a>
+            </div>
+            
+            <!-- Final Apply Button -->
+            <button type="submit" id="save-plan-btn" class="btn btn-primary"><i class="fas fa-check"></i> Apply Changes</button>
         </div>
     </div>
-
-    <!-- ===== TWO-COLUMN LAYOUT ===== -->
-    <div class="row">
-        <!-- 1. LEFT COLUMN: Sticky Recipe Tray -->
-        <div class="col-md-3">
-            <div class="sticky-top" style="top: 1rem;">
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-utensils"></i> Recipe & Meal Tray</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex mb-3">
-                            <input type="search" id="recipe-search" class="form-control" placeholder="Search recipes...">
-                            <button type="button" id="suggest-recipes-btn" class="btn btn-secondary ml-2 flex-shrink-0" title="Suggest Recipes"><i class="fas fa-random"></i></button>
+    
+    <div id="printable-area">
+        <h1 class="print-only-title" style="display:none;">Meal Plan - Week of {{ start_of_week.strftime('%B %d, %Y') }}</h1>
+        
+        <div class="row">
+            <div class="col-md-2 no-print">
+                <div class="sticky-top" style="top: 1rem;">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-utensils"></i> Recipe Tray</h5>
                         </div>
-                        
-                        <!-- REVERTED Tab Layout -->
-                        <div class="nav nav-tabs" id="recipeTypeTab" role="tablist">
-                            <a class="nav-item nav-link active col-6 text-center" data-toggle="tab" href="#main-tray">Mains</a>
-                            <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#side-tray">Sides</a>
-                            <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#dessert-tray">Desserts</a>
-                            <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#snack-tray">Snacks</a>
-                            <a class="nav-item nav-link col-12 text-center" data-toggle="tab" href="#saved-meals-tab">Saved Meals</a>
-                        </div>
-
-                        <div class="tab-content pt-3" id="recipe-tray-container">
-                            <div class="tab-pane fade show active" id="main-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
-                            <div class="tab-pane fade" id="side-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
-                            <div class="tab-pane fade" id="dessert-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
-                            <div class="tab-pane fade" id="snack-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
-                            <div class="tab-pane fade" id="saved-meals-tab" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. RIGHT COLUMN: Custom Items and Calendar -->
-        <div class="col-md-9">
-            <div class="card mb-2">
-                <div class="card-header"><h5 class="mb-0"><i class="fas fa-plus-circle"></i> Custom Items</h5></div>
-                <div class="card-body">
-                    <p class="small text-muted mb-2">Add takeout, leftovers, etc. and drag them onto the plan.</p>
-                    <div class="input-group mb-2">
-                        <input type="text" id="custom-item-input" class="form-control" placeholder="e.g., Order Pizza">
-                        <div class="input-group-append"><button class="btn btn-outline-secondary" type="button" id="add-custom-item-btn">+</button></div>
-                    </div>
-                    <div id="custom-item-tray" class="sortable-list recipe-tray" style="min-height: 38px;"></div>
-                </div>
-            </div>
-
-            <!-- The Calendar -->
-            <div class="d-flex flex-wrap" id="calendar-column">
-                {% for day in days %}
-                {% set day_str = day.strftime('%Y-%m-%d') %}
-                <div class="day-column">
-                    <div class="card day-card" data-day-str="{{ day_str }}">
-                        <div class="card-header text-center">{{ day.strftime('%A') }}</div>
-                        <div class="card-body day-card-body">
-                            {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h6 class="meal-type-header">{{ slot }}</h6>
-                                <button type="button" class="btn btn-success btn-sm meal-made-btn" data-date="{{ day_str }}" data-slot="{{ slot }}" title="Mark as made and remove ingredients from pantry"><i class="fas fa-check"></i></button>
+                        <div class="card-body">
+                            <div class="d-flex mb-3">
+                                <input type="search" id="recipe-search" class="form-control" placeholder="Search...">
+                                <button type="button" id="suggest-recipes-btn" class="btn btn-secondary ml-2 flex-shrink-0" title="Suggest"><i class="fas fa-random"></i></button>
                             </div>
-                            <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-{{ slot }}">
-                                {% for meal in planned_meals[day_str][slot] %}
-                                {% if meal.recipe_id %}<div class="recipe-card meal-type-{{ meal.recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ meal.recipe.id }}" data-meal-type="{{ meal.recipe.meal_type }}">{{ meal.recipe.name }}<span class="remove-recipe-btn">×</span></div>
-                                {% elif meal.custom_item_name %}<div class="recipe-card meal-type-custom" data-item-name="{{ meal.custom_item_name }}">{{ meal.custom_item_name }}<span class="remove-recipe-btn">×</span></div>{% endif %}
+                            <div class="nav nav-tabs" id="recipeTypeTab" role="tablist">
+                                <a class="nav-item nav-link active col-6 text-center" data-toggle="tab" href="#main-tray">Mains</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#side-tray">Sides</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#dessert-tray">Desserts</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#snack-tray">Snacks</a>
+                                <a class="nav-item nav-link col-12 text-center" data-toggle="tab" href="#saved-meals-tab">Saved Meals</a>
+                            </div>
+                            <div class="tab-content pt-3" id="recipe-tray-container">
+                                <div class="tab-pane fade show active" id="main-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="side-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="dessert-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="snack-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="saved-meals-tab" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-2 no-print">
+                        <div class="card-header"><h5 class="mb-0"><i class="fas fa-plus-circle"></i> Custom Items</h5></div>
+                        <div class="card-body">
+                            <p class="small text-muted mb-2">Add takeout, leftovers, etc.</p>
+                            <div class="input-group mb-2">
+                                <input type="text" id="custom-item-input" class="form-control" placeholder="e.g., Pizza">
+                                <div class="input-group-append"><button class="btn btn-outline-secondary" type="button" id="add-custom-item-btn">+</button></div>
+                            </div>
+                            <div id="custom-item-tray" class="sortable-list recipe-tray" style="min-height: 38px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-10"> 
+                <div class="d-flex flex-wrap" id="calendar-column">
+                    {% for day in days %}
+                    {% set day_str = day.strftime('%Y-%m-%d') %}
+                    <div class="day-column">
+                        <div class="card day-card" data-day-str="{{ day_str }}">
+                            <div class="card-header text-center">{{ day.strftime('%A') }} <br> <small>{{ day.strftime('%B %d') }}</small></div>
+                            <div class="card-body day-card-body">
+                                {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="meal-type-header">{{ slot }}</h6>
+                                    <button type="button" class="btn btn-success btn-sm meal-made-btn no-print" data-date="{{ day_str }}" data-slot="{{ slot }}" title="Mark as made and remove ingredients from pantry"><i class="fas fa-check"></i></button>
+                                </div>
+                                <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-{{ slot }}">
+                                    {% for meal in planned_meals[day_str][slot] %}
+                                    {% if meal.recipe_id %}<div class="recipe-card meal-type-{{ meal.recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ meal.recipe.id }}" data-meal-type="{{ meal.recipe.meal_type }}">{{ meal.recipe.name }}<span class="remove-recipe-btn no-print">×</span></div>
+                                    {% elif meal.custom_item_name %}<div class="recipe-card meal-type-custom" data-item-name="{{ meal.custom_item_name }}">{{ meal.custom_item_name }}<span class="remove-recipe-btn no-print">×</span></div>{% endif %}
+                                    {% endfor %}
+                                </div>
                                 {% endfor %}
                             </div>
-                            {% endfor %}
-                        </div>
-                        <div class="hidden-inputs">
-                            {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
-                            {% for meal in planned_meals[day_str][slot] %}
-                            {% if meal.recipe_id %}<input type="hidden" name="day-{{ day_str }}-{{ slot }}-recipe[]" value="{{ meal.recipe.id }}">
-                            {% elif meal.custom_item_name %}<input type="hidden" name="day-{{ day_str }}-{{ slot }}-custom[]" value="{{ meal.custom_item_name }}">{% endif %}
-                            {% endfor %}
-                            {% endfor %}
+                            <div class="hidden-inputs">
+                                {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
+                                {% for meal in planned_meals[day_str][slot] %}
+                                {% if meal.recipe_id %}<input type="hidden" name="day-{{ day_str }}-{{ slot }}-recipe[]" value="{{ meal.recipe.id }}">
+                                {% elif meal.custom_item_name %}<input type="hidden" name="day-{{ day_str }}-{{ slot }}-custom[]" value="{{ meal.custom_item_name }}">{% endif %}
+                                {% endfor %}
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
         </div>
     </div>
@@ -146,7 +162,7 @@
             card.textContent = item.name;
             if (includeRemoveButton) {
                 const removeBtn = document.createElement('span');
-                removeBtn.className = 'remove-recipe-btn';
+                removeBtn.className = 'remove-recipe-btn no-print'; 
                 removeBtn.innerHTML = '×';
                 card.appendChild(removeBtn);
             }
@@ -175,14 +191,11 @@
             });
         }
 
-        // --- REVERTED AND FIXED renderRecipeTray function ---
         function renderRecipeTray(recipes) {
-            document.querySelectorAll('.recipe-tray').forEach(tray => tray.innerHTML = ''); // Clear all trays first
+            document.querySelectorAll('#main-tray .recipe-tray, #side-tray .recipe-tray, #dessert-tray .recipe-tray, #snack-tray .recipe-tray').forEach(tray => tray.innerHTML = '');
             for (const mealType in recipes) {
-                // This is the corrected, simpler logic
                 const simpleId = mealType.split(' ')[0].toLowerCase() + '-tray';
                 const targetTray = document.querySelector(`#${simpleId} .recipe-tray`);
-                
                 if (targetTray) {
                     recipes[mealType].slice(0, 6).forEach(recipe => {
                         const card = createCard({ type: 'recipe', ...recipe }, false);
@@ -214,7 +227,7 @@
                         } else {
                             if (!item.querySelector('.remove-recipe-btn')) {
                                 const removeBtn = document.createElement('span');
-                                removeBtn.className = 'remove-recipe-btn';
+                                removeBtn.className = 'remove-recipe-btn no-print';
                                 removeBtn.innerHTML = '×';
                                 item.appendChild(removeBtn);
                             }
@@ -243,7 +256,6 @@
                 });
         }
 
-        // --- EVENT LISTENERS ---
         document.getElementById('calendar-column').addEventListener('click', e => {
             if (e.target && e.target.classList.contains('remove-recipe-btn')) {
                 e.target.closest('.recipe-card').remove();
@@ -334,6 +346,25 @@
                     });
                     renderRecipeTray(groupedSuggestions);
                 });
+        });
+
+        const datePickerInput = document.getElementById('date-picker-input');
+        const datePickerTrigger = document.getElementById('date-picker-trigger');
+        const fpInstance = flatpickr(datePickerInput, {
+            dateFormat: "Y-m-d",
+            static: true, 
+            onChange: function(selectedDates, dateStr, instance) {
+                const selectedDate = selectedDates[0];
+                const dayOfWeek = selectedDate.getDay(); 
+                const diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+                const monday = new Date(selectedDate.setDate(diff));
+                const formattedMonday = monday.toISOString().split('T')[0];
+                window.location.href = `/meal-plan?start_date=${formattedMonday}`;
+            }
+        });
+        
+        datePickerTrigger.addEventListener('click', () => {
+            fpInstance.open();
         });
 
         initializeAll();

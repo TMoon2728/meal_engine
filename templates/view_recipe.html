@@ -3,13 +3,57 @@
 <div class="printable-content">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>{{ recipe.name }}</h1>
-    <div class="no-print">
-      <a href="{{ url_for('cook_recipe', recipe_id=recipe.id) }}" class="btn btn-success"><i class="fas fa-hat-chef"></i> Start Cooking</a>
-      <button onclick="window.print()" class="btn btn-secondary"><i class="fas fa-print"></i> Print Recipe</button>
+    
+    <div class="d-flex align-items-center no-print recipe-actions">
+      <i class="favorite-icon {% if recipe.is_favorite %}fas fa-heart{% else %}far fa-heart{% endif %}" 
+         data-recipe-id="{{ recipe.id }}" 
+         title="Toggle Favorite"></i>
+
+      <!-- AI Remix Dropdown -->
+      <div class="btn-group mx-2">
+        <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <i class="fas fa-magic"></i> AI Remix
+        </button>
+        <!-- FIX: Added id="remix-menu" to the dropdown div -->
+        <div class="dropdown-menu dropdown-menu-right" id="remix-menu">
+            <div class="px-3 py-2">
+                <p class="mb-2 small text-muted">Let the AI modify this recipe for you!</p>
+                <div class="form-group">
+                    <select id="remix-type" class="form-control form-control-sm">
+                        <option value="Make it Healthier">Make it Healthier</option>
+                        <option value="Make it Gluten-Free">Make it Gluten-Free</option>
+                        <option value="Make it Vegetarian">Make it Vegetarian</option>
+                        <option value="Double the recipe">Double the Recipe</option>
+                        <option value="Halve the recipe">Halve the Recipe</option>
+                        <option value="Make it for a large crowd">Make it Crowd-Friendly</option>
+                        <option value="Suggest a Wine Pairing">Suggest a Wine Pairing</option>
+                    </select>
+                </div>
+                <button id="remix-recipe-btn" class="btn btn-primary btn-sm btn-block">Remix!</button>
+            </div>
+        </div>
+      </div>
+
+      <!-- Actions Dropdown -->
+      <div class="btn-group">
+        <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          Actions
+        </button>
+        <div class="dropdown-menu dropdown-menu-right">
+          <a class="dropdown-item" href="{{ url_for('cook_recipe', recipe_id=recipe.id) }}"><i class="fas fa-utensils"></i> Start Cooking</a>
+          <a class="dropdown-item" href="#" onclick="window.print()"><i class="fas fa-print"></i> Print Recipe</a>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" href="{{ url_for('edit_recipe', recipe_id=recipe.id) }}"><i class="fas fa-edit"></i> Edit Recipe</a>
+          <div class="dropdown-item-form">
+            <form action="{{ url_for('delete_recipe', recipe_id=recipe.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to permanently delete this recipe?');">
+                <button type="submit" class="dropdown-item-button"><i class="fas fa-trash"></i> Delete Recipe</button>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   
-  <!-- Star Rating Display -->
   <div class="star-rating-view" id="star-rating-interactive-container">
       {% for i in range(1, 6) %}
       <i class="star-icon {% if recipe.rating >= i %}fas{% else %}far{% endif %} fa-star" 
@@ -17,7 +61,28 @@
       {% endfor %}
   </div>
 
-  <p><strong>Servings:</strong> {{ recipe.servings }} | <strong>Prep Time:</strong> {{ recipe.prep_time }} | <strong>Cook Time:</strong> {{ recipe.cook_time }}</p>
+  <p><strong>Servings:</strong> {{ recipe.servings or 'N/A' }} | <strong>Prep Time:</strong> {{ recipe.prep_time or 'N/A' }} | <strong>Cook Time:</strong> {{ recipe.cook_time or 'N/A' }}</p>
+  
+  {% if recipe.calories %}
+  <div class="card bg-light p-3 my-3">
+    <h5 class="card-title mb-1">Nutritional Info (per serving)</h5>
+    <div class="card-text">
+        <strong>Calories:</strong> {{ recipe.calories|round|int }} | 
+        <strong>Protein:</strong> {{ recipe.protein|round|int }}g | 
+        <strong>Fat:</strong> {{ recipe.fat|round|int }}g | 
+        <strong>Carbs:</strong> {{ recipe.carbs|round|int }}g
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- AI results will now appear in a dedicated section -->
+  <div id="remix-results-section" style="display: none;">
+      <hr>
+      <h3><i class="fas fa-hat-wizard"></i> AI Remix Result</h3>
+      <div id="remix-result-box" class="p-3 bg-light" style="border-radius: 8px; white-space: pre-wrap;"></div>
+      <div id="save-remix-container" class="text-center my-3"></div>
+  </div>
+
   <hr>
   <h3><i class="fas fa-shopping-basket"></i> Ingredients</h3>
   <ul>
@@ -30,52 +95,11 @@
   <p style="white-space: pre-wrap;">{{ recipe.instructions }}</p>
 </div>
 
-<hr class="no-print">
-
-<!-- UPDATED: Added Delete Button -->
-<div class="no-print">
-  <div class="d-flex justify-content-between align-items-center">
-      <div>
-        <a href="{{ url_for('edit_recipe', recipe_id=recipe.id) }}" class="btn btn-primary"><i class="fas fa-edit"></i> Edit Recipe</a>
-        <!-- NEW: Delete button in a form -->
-        <form action="{{ url_for('delete_recipe', recipe_id=recipe.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this recipe?');">
-            <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> Delete Recipe</button>
-        </form>
-      </div>
-      <div>
-          <i class="favorite-icon {% if recipe.is_favorite %}fas fa-heart{% else %}far fa-heart{% endif %} fa-2x" 
-             data-recipe-id="{{ recipe.id }}" 
-             title="Toggle Favorite"></i>
-      </div>
-  </div>
-
-  <div class="card w-75 mx-auto my-4 ai-assistant-card">
-    <div class="card-header text-center">
-      <h3 class="my-0"><i class="fas fa-magic"></i> AI Recipe Assistant</h3>
-    </div>
-    <div class="card-body">
-      <p class="text-center">Let the AI modify this recipe for you!</p>
-      <div class="row align-items-end justify-content-center">
-          <div class="col-md-6">
-              <label for="remix-type">Select a Modification:</label>
-              <select id="remix-type" class="form-control">
-                  <option value="Make it Healthier">Make it Healthier</option>
-                  <option value="Make it Gluten-Free">Make it Gluten-Free</option>
-                  <option value="Make it Vegetarian">Make it Vegetarian</option>
-                  <option value="Suggest a Wine Pairing">Suggest a Wine Pairing</option>
-              </select>
-          </div>
-          <div class="col-md-3">
-              <button id="remix-recipe-btn" class="btn btn-primary btn-block">Remix!</button>
-          </div>
-      </div>
-      <div id="remix-result-box" class="mt-3 p-3" style="background-color: #f8f9fa; border-radius: 8px; display: none; white-space: pre-wrap;"></div>
-    </div>
-  </div>
-</div>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    
+    let currentRemixData = null;
+
     const favoriteIcon = document.querySelector('.favorite-icon');
     if (favoriteIcon) {
         favoriteIcon.addEventListener('click', function() {
@@ -100,35 +124,80 @@ document.addEventListener('DOMContentLoaded', function() {
     const remixBtn = document.getElementById('remix-recipe-btn');
     if(remixBtn) {
         const remixType = document.getElementById('remix-type');
+        const remixResultsSection = document.getElementById('remix-results-section');
         const remixResultBox = document.getElementById('remix-result-box');
+        const saveRemixContainer = document.getElementById('save-remix-container');
+
         remixBtn.addEventListener('click', function() {
-            remixResultBox.style.display = 'block';
-            remixResultBox.textContent = '🧠 Contacting the AI assistant...';
-            const data = {
-                recipe_id: '{{ recipe.id }}',
-                remix_type: remixType.value
-            };
+            remixResultsSection.style.display = 'block';
+            saveRemixContainer.innerHTML = ''; 
+            remixResultBox.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Contacting the AI assistant...';
+            
             fetch('/api/remix-recipe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: JSON.stringify({
+                    recipe_id: '{{ recipe.id }}',
+                    remix_type: remixType.value
+                })
             })
             .then(response => response.json())
-            .then(result => {
-                if(result.error) {
-                    remixResultBox.textContent = `Error: ${result.error}`;
+            .then(data => {
+                if(data.error) {
+                    remixResultBox.textContent = `Error: ${data.error}`;
+                    currentRemixData = null;
                 } else {
-                    remixResultBox.textContent = result.remixed_recipe;
+                    currentRemixData = data.remixed_recipe;
+                    
+                    let displayText = `<strong>${currentRemixData.name}</strong>\n\n<strong>Ingredients:</strong>\n`;
+                    currentRemixData.ingredients.forEach(ing => {
+                        displayText += `- ${ing.quantity || ''} ${ing.unit || ''} ${ing.name}\n`;
+                    });
+                    displayText += `\n<strong>Instructions:</strong>\n${currentRemixData.instructions}`;
+                    
+                    const formattedHTML = displayText.replace(/\n/g, '<br>');
+                    remixResultBox.innerHTML = formattedHTML;
+
+                    const saveBtn = document.createElement('button');
+                    saveBtn.className = 'btn btn-success';
+                    saveBtn.id = 'save-remix-btn';
+                    saveBtn.innerHTML = '<i class="fas fa-save"></i> Save as New Recipe';
+                    saveRemixContainer.appendChild(saveBtn);
                 }
             })
             .catch(error => {
                 remixResultBox.textContent = 'An error occurred. Please try again.';
                 console.error('Error:', error);
+                currentRemixData = null;
             });
+        });
+
+        saveRemixContainer.addEventListener('click', function(e){
+            if (e.target.id === 'save-remix-btn') {
+                if (currentRemixData && confirm(`Are you sure you want to save "${currentRemixData.name}" as a new recipe?`)) {
+                    e.target.disabled = true;
+                    e.target.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+                    fetch('/api/save-new-recipe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(currentRemixData)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = `/recipe/${data.recipe_id}/edit`;
+                        } else {
+                            alert('Error saving recipe: ' + data.message);
+                            e.target.disabled = false;
+                            e.target.innerHTML = '<i class="fas fa-save"></i> Save as New Recipe';
+                        }
+                    });
+                }
+            }
         });
     }
 
-    // Interactive Star Rating
     const starContainer = document.getElementById('star-rating-interactive-container');
     if(starContainer){
         const stars = starContainer.querySelectorAll('.star-icon');
@@ -152,6 +221,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    // --- FIX: This snippet prevents the AI Remix dropdown from closing when clicked inside ---
+    const remixMenu = document.getElementById('remix-menu');
+    if (remixMenu) {
+        remixMenu.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+
 });
 </script>
 {% endblock %}

@@ -1,14 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import desc
 from datetime import date, timedelta, datetime
-import os, csv, random, json, io, re, uuid
+import os, csv, random, json, io, re, uuid, calendar
 from werkzeug.utils import secure_filename
 import google.generativeai as genai
 from dotenv import load_dotenv
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
-import pint 
+import pint
 
 import requests
 from bs4 import BeautifulSoup
@@ -221,6 +221,8 @@ class HistoricalPlanEntry(db.Model):
 
 # --- Routes ---
 
+# ... (Authentication and other standard routes are unchanged) ...
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -319,6 +321,8 @@ def list_recipes():
         recipes = base_query.all()
         
     return render_template('recipes.html', recipes=recipes, query=query, pantry_filter_active=pantry_filter_active, favorites_filter_active=favorites_filter_active, sort_order=sort_order)
+
+# ... (Other routes like /ai-quick-add, /ingredients, /recipe/* are unchanged) ...
 
 @app.route('/ai-quick-add', methods=['POST'])
 @login_required
@@ -515,7 +519,6 @@ def cook_recipe(recipe_id):
     steps = [step.strip() for step in recipe.instructions.strip().split('\n') if step.strip()]
     return render_template('cooking_mode.html', recipe=recipe, steps=steps)
 
-# --- UPDATED edit_recipe route to save nutritional info ---
 @app.route('/recipe/<int:recipe_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_recipe(recipe_id):
@@ -524,17 +527,16 @@ def edit_recipe(recipe_id):
     if request.method == 'POST':
         recipe.name = request.form.get('name')
         recipe.instructions = request.form.get('instructions') or "No instructions provided."
-        recipe.servings = request.form.get('servings')
+        recipe.servings = request.form.get('servings') if request.form.get('servings') else None
         recipe.prep_time = request.form.get('prep_time')
         recipe.cook_time = request.form.get('cook_time')
         recipe.meal_type = request.form.get('meal_type')
         
-        # Save nutritional data, converting empty strings to None
         recipe.calories = float(request.form.get('calories')) if request.form.get('calories') else None
         recipe.protein = float(request.form.get('protein')) if request.form.get('protein') else None
         recipe.fat = float(request.form.get('fat')) if request.form.get('fat') else None
         recipe.carbs = float(request.form.get('carbs')) if request.form.get('carbs') else None
-
+        
         RecipeIngredient.query.filter_by(recipe_id=recipe.id).delete()
         ingredient_ids = request.form.getlist('ingredient[]')
         quantities = request.form.getlist('quantity[]')
@@ -624,36 +626,39 @@ def meal_prep():
     
     if request.method == 'POST':
         recipe_ids = request.form.getlist('recipe_ids')
-        servings_list = request.form.getlist('servings')
         
         total_ingredients = {}
         total_nutrition = {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
         selected_recipes_details = []
 
-        for i, recipe_id in enumerate(recipe_ids):
+        for recipe_id in recipe_ids:
             try:
-                desired_servings = int(servings_list[i])
-                if desired_servings <= 0: continue
-
-                recipe = Recipe.query.get(int(recipe_id))
-                if not recipe or recipe.household_id != current_user.household_id: continue
+                servings_input_name = f'servings-{recipe_id}'
+                desired_servings_str = request.form.get(servings_input_name)
                 
-                selected_recipes_details.append({'recipe': recipe, 'servings': desired_servings})
+                if desired_servings_str:
+                    desired_servings = int(desired_servings_str)
+                    if desired_servings <= 0: continue
 
-                scaling_factor = desired_servings / (recipe.servings or 1)
+                    recipe = Recipe.query.get(int(recipe_id))
+                    if not recipe or recipe.household_id != current_user.household_id: continue
+                    
+                    selected_recipes_details.append({'recipe': recipe, 'servings': desired_servings})
 
-                total_nutrition['calories'] += (recipe.calories or 0) * scaling_factor
-                total_nutrition['protein'] += (recipe.protein or 0) * scaling_factor
-                total_nutrition['fat'] += (recipe.fat or 0) * scaling_factor
-                total_nutrition['carbs'] += (recipe.carbs or 0) * scaling_factor
+                    scaling_factor = desired_servings / (recipe.servings or 1)
 
-                for ing in recipe.ingredients:
-                    key = (ing.ingredient.name, ing.unit)
-                    if key not in total_ingredients:
-                        total_ingredients[key] = 0
-                    total_ingredients[key] += ing.quantity * scaling_factor
+                    total_nutrition['calories'] += (recipe.calories or 0) * scaling_factor
+                    total_nutrition['protein'] += (recipe.protein or 0) * scaling_factor
+                    total_nutrition['fat'] += (recipe.fat or 0) * scaling_factor
+                    total_nutrition['carbs'] += (recipe.carbs or 0) * scaling_factor
+
+                    for ing in recipe.ingredients:
+                        key = (ing.ingredient.name, ing.unit)
+                        if key not in total_ingredients:
+                            total_ingredients[key] = 0
+                        total_ingredients[key] += ing.quantity * scaling_factor
             
-            except (ValueError, ZeroDivisionError):
+            except (ValueError, ZeroDivisionError, TypeError):
                 continue
         
         return render_template('meal_prep.html', 
@@ -663,6 +668,54 @@ def meal_prep():
                                selected_recipes_details=selected_recipes_details)
 
     return render_template('meal_prep.html', recipes=all_recipes)
+
+@app.route('/monthly-plan', methods=['GET'])
+@login_required
+def monthly_plan():
+    try:
+        year = int(request.args.get('year', date.today().year))
+        month = int(request.args.get('month', date.today().month))
+    except ValueError:
+        today = date.today()
+        year = today.year
+        month = today.month
+
+    if not (1 <= month <= 12): month = date.today().month
+    if not (1900 <= year <= 2100): year = date.today().year
+
+    cal = calendar.Calendar(firstweekday=0)
+    month_days = cal.monthdatescalendar(year, month)
+
+    first_day_of_calendar = month_days[0][0]
+    last_day_of_calendar = month_days[-1][-1]
+    
+    all_meals = MealPlan.query.filter(
+        MealPlan.household_id == current_user.household_id,
+        MealPlan.meal_date.between(first_day_of_calendar, last_day_of_calendar)
+    ).all()
+
+    planned_meals = {}
+    for meal in all_meals:
+        day_str = meal.meal_date.strftime('%Y-%m-%d')
+        if day_str not in planned_meals:
+            planned_meals[day_str] = []
+        planned_meals[day_str].append(meal)
+    
+    current_month_date = date(year, month, 1)
+    prev_month_date = current_month_date - timedelta(days=1)
+    next_month_date = current_month_date + timedelta(days=32)
+    
+    nav = {
+        'current': current_month_date,
+        'prev': prev_month_date,
+        'next': next_month_date
+    }
+    
+    return render_template('monthly_plan.html',
+                           calendar_data=month_days,
+                           planned_meals=planned_meals,
+                           nav=nav)
+
 
 
 @app.route('/ai-architect')
@@ -733,34 +786,52 @@ def import_and_create_recipe():
 
         if len(page_text) < 100:
              return jsonify({'error': 'Could not extract enough readable content from the URL.'}), 400
-
-        prompt = (f"""
+        
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        
+        recipe_prompt = (f"""
             Analyze the following text from a recipe webpage and extract the recipe details.
             Your output must be a single, valid JSON object with the following keys:
             - "name": The title of the recipe.
+            - "servings": The number of servings.
             - "instructions": A single string with steps separated by '\\n'.
             - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', or 'Snack'.
             - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
         """)
         
-        model = genai.GenerativeModel('gemini-1.5-pro')
-        ai_response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                response_mime_type="application/json"
-            )
+        recipe_response = model.generate_content(
+            [recipe_prompt, page_text],
+            generation_config=genai.types.GenerationConfig(response_mime_type="application/json")
         )
-        recipe_data = json.loads(ai_response.text)
+        recipe_data = json.loads(recipe_response.text)
 
         if not recipe_data.get('name') or not recipe_data.get('instructions') or not recipe_data.get('ingredients'):
             return jsonify({'error': 'The AI could not understand the recipe from that URL.'}), 400
         
+        ingredient_list_for_nutrition = ", ".join([f"{ing.get('quantity', '')} {ing.get('unit', '')} {ing.get('name', '')}" for ing in recipe_data['ingredients']])
+        nutrition_prompt = f"""
+            Analyze the following ingredient list and estimate the nutritional information PER SERVING.
+            Ingredient List: {ingredient_list_for_nutrition}
+            Total Servings: {recipe_data.get('servings', 1)}
+            Your output must be a single, valid JSON object with only these keys, using only numbers for values: "calories", "protein", "fat", "carbs".
+        """
+        nutrition_response = model.generate_content(
+            nutrition_prompt,
+            generation_config=genai.types.GenerationConfig(response_mime_type="application/json")
+        )
+        nutrition_data = json.loads(nutrition_response.text)
+
         new_recipe = Recipe(
             name=recipe_data['name'], 
             instructions=recipe_data['instructions'],
+            servings=recipe_data.get('servings'),
             meal_type=recipe_data.get('meal_type', 'Main Course'),
             author=current_user,
-            household_id=current_user.household_id
+            household_id=current_user.household_id,
+            calories=nutrition_data.get('calories'),
+            protein=nutrition_data.get('protein'),
+            fat=nutrition_data.get('fat'),
+            carbs=nutrition_data.get('carbs')
         )
         db.session.add(new_recipe)
         db.session.flush()
@@ -787,16 +858,18 @@ def import_and_create_recipe():
         
         db.session.commit()
         
-        flash(f'Successfully imported "{new_recipe.name}"! Please review the details.', 'success')
+        flash(f'Successfully imported "{new_recipe.name}"! Please review the details and AI-generated nutritional info.', 'success')
         return jsonify({'success': True, 'recipe_id': new_recipe.id})
 
     except requests.exceptions.RequestException as e:
         return jsonify({'error': f'Failed to fetch the URL.'}), 500
     except Exception as e:
         db.session.rollback()
+        print(f"Error during import: {e}")
         return jsonify({'error': f'An unexpected error occurred during import.'}), 500
 
 
+# ===== UPDATED /api/build-plan Route =====
 @app.route('/api/build-plan', methods=['POST'])
 @login_required
 def build_plan_api():
@@ -804,64 +877,82 @@ def build_plan_api():
     theme = data.get('theme')
     use_pantry = data.get('use_pantry', False)
     focus_favorites = data.get('focus_favorites', False)
+    plan_breakfast = data.get('plan_breakfast', False)
+    plan_lunch = data.get('plan_lunch', False)
+    plan_dinner = data.get('plan_dinner', False)
     takeout_days = int(data.get('takeout_days', 0))
 
-    recipes_to_select = 7 - takeout_days
     all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     
-    if len(all_recipes) < recipes_to_select:
-        return jsonify({'error': f'You need at least {recipes_to_select} recipes in your database to build this plan.'}), 400
+    prompt_sections = []
     
+    # Dynamically build the sections and instructions based on user selection
+    requested_meals = []
+    if plan_breakfast:
+        requested_meals.append('Breakfast')
+        breakfast_recipes = [r for r in all_recipes if r.meal_type in ('Breakfast', 'Snack')]
+        breakfast_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in breakfast_recipes]) if breakfast_recipes else "No breakfast recipes available."
+        prompt_sections.append(f"Available Breakfasts (can also use Snacks):\n{breakfast_list}")
+
+    if plan_lunch:
+        requested_meals.append('Lunch')
+        lunch_recipes = [r for r in all_recipes if r.meal_type in ('Lunch', 'Side Dish', 'Main Course')]
+        lunch_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in lunch_recipes]) if lunch_recipes else "No lunch recipes available."
+        prompt_sections.append(f"Available Lunches (can also use Sides or Mains):\n{lunch_list}")
+
+    if plan_dinner:
+        requested_meals.append('Dinner')
+        dinner_recipes = [r for r in all_recipes if r.meal_type in ('Main Course',)]
+        dinner_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in dinner_recipes]) if dinner_recipes else "No dinner recipes available."
+        prompt_sections.append(f"Available Dinners:\n{dinner_list}")
+
+    
+    instruction = f"You must select recipes for {', '.join(requested_meals)} for each of the 7 days (Monday to Sunday)."
+    if plan_dinner and takeout_days > 0:
+        instruction += f" For Dinner, you must also create exactly {takeout_days} placeholder entries where the 'name' is 'Takeout Night' and the 'id' is null. The other {7-takeout_days} dinners must be selected from the recipe list."
+    
+    # Add placeholders for unselected meals
+    unrequested_meals = [meal for meal in ['Breakfast', 'Lunch', 'Dinner'] if meal not in requested_meals]
+    if unrequested_meals:
+        placeholder_instruction = f" For any meal slot not requested ({', '.join(unrequested_meals)}), you must use an object with 'id': null and 'name': 'Unplanned'."
+    else:
+        placeholder_instruction = ""
+
     prompt_context = ""
     if use_pantry:
-        pantry_items = PantryItem.query.filter_by(household_id=current_user.household_id).filter(PantryItem.quantity > 0).all()
+        pantry_items = PantryItem.query.filter(PantryItem.household_id == current_user.household_id, PantryItem.quantity > 0).all()
         if pantry_items:
             pantry_list = ", ".join([p.ingredient.name for p in pantry_items])
-            prompt_context += f"\nCONTEXT: Please prioritize recipes that use these ingredients from the household pantry: {pantry_list}."
+            prompt_context += f"\nCONTEXT: Prioritize recipes using: {pantry_list}."
     if focus_favorites:
-        favorite_recipes = Recipe.query.filter_by(household_id=current_user.household_id).filter(Recipe.rating >= 4).all()
+        favorite_recipes = Recipe.query.filter(Recipe.household_id == current_user.household_id, Recipe.rating >= 4).all()
         if favorite_recipes:
             fav_list = ", ".join([f'"{r.name}"' for r in favorite_recipes])
-            prompt_context += f"\nCONTEXT: The user's household loves these recipes, so try to include some of them: {fav_list}."
+            prompt_context += f"\nCONTEXT: The user enjoys these recipes: {fav_list}."
 
-    recipe_list_text = "\n".join([f"id: {r.id}, name: \"{r.name}\", rating: {r.rating}" for r in all_recipes])
-    
-    prompt = (
-        f"You are a Meal Plan Architect. Your task is to create a 7-day meal plan for the theme: '{theme}'.\n"
-        f"You must select exactly {recipes_to_select} recipes from the provided list.{prompt_context}\n"
-        f"For the remaining {takeout_days} days, you must create placeholder entries. For these placeholders, the 'name' must be exactly 'Takeout Night' and the 'id' must be null.\n\n"
-        f"Recipes Available:\n{recipe_list_text}\n\n"
-        f"Your response MUST be ONLY a valid JSON array containing exactly 7 total entries (a mix of the {recipes_to_select} recipes you chose and the {takeout_days} 'Takeout Night' placeholders). The order of recipes and takeout nights in the array should be varied."
+    # Correctly build the sections string BEFORE the main f-string
+    prompt_sections_str = "\n\n".join(prompt_sections)
+
+    final_prompt = (
+        f"You are a Meal Plan Architect. Create a diverse 7-day meal plan based on the theme: '{theme}'.\n"
+        f"{instruction} Do not repeat recipes.{placeholder_instruction}{prompt_context}\n\n"
+        f"{prompt_sections_str}\n\n"
+        f"Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the week ('Monday',..., 'Sunday'). Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'."
     )
     
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
-        response = model.generate_content(prompt)
-        plan_data = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
+        response = model.generate_content(final_prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"))
+        plan_data = json.loads(response.text.strip())
         
-        if len(plan_data) != 7:
-            raise ValueError(f"AI did not return 7 days, it returned {len(plan_data)}.")
-
-        valid_user_recipe_ids = {r.id for r in all_recipes}
-        recipe_count = 0
-        takeout_count = 0
-        
-        for meal in plan_data:
-            meal_id = meal.get('id')
-            if meal_id is None:
-                takeout_count += 1
-            elif meal_id not in valid_user_recipe_ids:
-                return jsonify({'error': 'The AI returned an invalid plan, suggesting a recipe you do not have. Please try generating the plan again.'}), 400
-            else:
-                recipe_count += 1
-
-        if recipe_count != recipes_to_select or takeout_count != takeout_days:
-             raise ValueError(f"AI returned incorrect counts. Expected {recipes_to_select} recipes and {takeout_days} takeouts, but got {recipe_count} and {takeout_count}.")
+        if 'Monday' not in plan_data:
+            raise ValueError("AI response did not follow the required JSON structure.")
 
         return jsonify(plan_data)
     except Exception as e:
-        print(f"Build Plan Error: {e}")
-        return jsonify({'error': f'The AI failed to generate a valid plan. Details: {e}'}), 500
+        print(f"Build Plan Error: {e}\nResponse Text: {response.text if 'response' in locals() else 'No response'}")
+        return jsonify({'error': f'The AI failed to generate a valid plan. Details: {str(e)}'}), 500
+
 
 @app.route('/api/set-rating/<int:recipe_id>', methods=['POST'])
 @login_required
@@ -906,17 +997,80 @@ def remix_recipe_api():
     remix_type = data.get('remix_type')
     recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first()
     if not recipe: return jsonify({'error': 'Recipe not found'}), 404
-    ingredient_list = "\n".join([f"- {ri.quantity} {ri.unit} of {ri.ingredient.name}" for ri in recipe.ingredients])
     
-    prompt = (f"Please rewrite the recipe '{recipe.name}' to be '{remix_type}'. Provide a completely new version: new name, full ingredient list, and step-by-step instructions.")
+    prompt = (f"Please rewrite the recipe '{recipe.name}' to be '{remix_type}'. "
+              "Your output must be a single, valid JSON object with the following keys: "
+              "\"name\" (a creative new name for the remixed recipe), "
+              "\"instructions\" (a single string with steps separated by '\\n'), "
+              "\"ingredients\" (an array of objects, where each object has \"name\", \"quantity\", and \"unit\").")
 
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
-        response = model.generate_content(prompt)
-        ai_response = response.text
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
+        remixed_data = json.loads(response.text)
+        
+        if not all(k in remixed_data for k in ['name', 'instructions', 'ingredients']):
+             raise ValueError("AI response was missing required keys.")
+
+        return jsonify({'remixed_recipe': remixed_data})
     except Exception as e:
-        ai_response = "Sorry, the AI assistant is unavailable."
-    return jsonify({'remixed_recipe': ai_response})
+        print(f"Remix recipe error: {e}")
+        return jsonify({'error': 'Sorry, the AI assistant could not generate a valid recipe remix.'})
+
+
+@app.route('/api/save-new-recipe', methods=['POST'])
+@login_required
+def save_new_recipe():
+    data = request.get_json()
+    if not data or not data.get('name') or not data.get('instructions'):
+        return jsonify({'success': False, 'message': 'Invalid recipe data.'}), 400
+        
+    try:
+        new_recipe = Recipe(
+            name=data['name'], 
+            instructions=data['instructions'],
+            meal_type=data.get('meal_type', 'Main Course'),
+            author=current_user,
+            household_id=current_user.household_id
+        )
+        db.session.add(new_recipe)
+        db.session.flush()
+
+        if 'ingredients' in data and isinstance(data['ingredients'], list):
+            for ing_data in data['ingredients']:
+                ingredient_name = ing_data.get('name', '').strip()
+                if not ingredient_name: continue
+
+                ingredient_obj = Ingredient.query.filter(db.func.lower(Ingredient.name) == db.func.lower(ingredient_name)).first()
+                if not ingredient_obj:
+                    ingredient_obj = Ingredient(name=ingredient_name)
+                    db.session.add(ingredient_obj)
+                    db.session.flush()
+                
+                quantity_val = convert_quantity_to_float(ing_data.get('quantity', 0))
+                
+                recipe_ingredient = RecipeIngredient(
+                    recipe_id=new_recipe.id, 
+                    ingredient_id=ingredient_obj.id, 
+                    quantity=quantity_val,
+                    unit=ing_data.get('unit', '')
+                )
+                db.session.add(recipe_ingredient)
+        
+        db.session.commit()
+        flash(f'New recipe "{new_recipe.name}" saved successfully!', 'success')
+        return jsonify({'success': True, 'recipe_id': new_recipe.id})
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Save new recipe error: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while saving.'}), 500
+
 
 @app.route('/api/suggest-recipes')
 @login_required
