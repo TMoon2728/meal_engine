@@ -8,19 +8,36 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
-import pint
+import pint 
+
+# --- NEW IMPORTS FOR PASSWORD RESET ---
+from itsdangerous import URLSafeTimedSerializer
+import smtplib
+from email.message import EmailMessage
+# --- END NEW IMPORTS ---
+
+# Import WhiteNoise
+from whitenoise import WhiteNoise
 
 import requests
 from bs4 import BeautifulSoup
 
 load_dotenv()
 app = Flask(__name__)
+
+# Initialize WhiteNoise and tell it where to find static files
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
+
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", 'sqlite:///meal_engine.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
+
+# --- NEW SERIALIZER FOR PASSWORD RESET TOKENS ---
+s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+# --- END NEW SERIALIZER ---
 
 def convert_quantity_to_float(quantity_str):
     if not isinstance(quantity_str, str):
@@ -221,7 +238,41 @@ class HistoricalPlanEntry(db.Model):
 
 # --- Routes ---
 
-# ... (Authentication and other standard routes are unchanged) ...
+# --- NEW HELPER FUNCTION TO SEND EMAIL ---
+def send_reset_email(user_email, token):
+    msg = EmailMessage()
+    msg['Subject'] = 'Password Reset Request for Meal Engine'
+    msg['From'] = os.getenv('MAIL_USERNAME')
+    msg['To'] = user_email
+    
+    reset_url = url_for('reset_password', token=token, _external=True)
+    
+    msg.set_content(f"""
+    Hello,
+
+    A password reset has been requested for your Meal Engine account.
+    Please click the link below to reset your password. This link is valid for 30 minutes.
+
+    {reset_url}
+
+    If you did not request this, please ignore this email.
+
+    Thanks,
+    The Meal Engine Team
+    """)
+
+    try:
+        with smtplib.SMTP(os.getenv('MAIL_SERVER'), int(os.getenv('MAIL_PORT'))) as server:
+            if os.getenv('MAIL_USE_TLS').lower() == 'true':
+                server.starttls()
+            server.login(os.getenv('MAIL_USERNAME'), os.getenv('MAIL_PASSWORD'))
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return False
+
+# --- AUTHENTICATION ROUTES ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -268,6 +319,61 @@ def signup():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
+# --- NEW PASSWORD RESET ROUTES ---
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            token = s.dumps(email, salt='password-reset-salt')
+            if send_reset_email(email, token):
+                flash('A password reset link has been sent to your email.', 'info')
+            else:
+                flash('There was an error sending the email. Please try again later.', 'danger')
+        else:
+            # Still show the same message to prevent user enumeration
+            flash('A password reset link has been sent to your email.', 'info')
+        return redirect(url_for('login'))
+    return render_template('forgot_password.html')
+
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    try:
+        # Token is valid for 1800 seconds (30 minutes)
+        email = s.loads(token, salt='password-reset-salt', max_age=1800)
+    except:
+        flash('The password reset link is invalid or has expired.', 'warning')
+        return redirect(url_for('forgot_password'))
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return render_template('reset_password.html')
+
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user.password = hashed_password
+        db.session.commit()
+        flash('Your password has been successfully updated! Please log in.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('reset_password.html')
+
+# --- MAIN APPLICATION ROUTES ---
 
 @app.route('/')
 def index():
@@ -322,7 +428,6 @@ def list_recipes():
         
     return render_template('recipes.html', recipes=recipes, query=query, pantry_filter_active=pantry_filter_active, favorites_filter_active=favorites_filter_active, sort_order=sort_order)
 
-# ... (Other routes like /ai-quick-add, /ingredients, /recipe/* are unchanged) ...
 
 @app.route('/ai-quick-add', methods=['POST'])
 @login_required
@@ -869,7 +974,6 @@ def import_and_create_recipe():
         return jsonify({'error': f'An unexpected error occurred during import.'}), 500
 
 
-# ===== UPDATED /api/build-plan Route =====
 @app.route('/api/build-plan', methods=['POST'])
 @login_required
 def build_plan_api():
@@ -886,7 +990,6 @@ def build_plan_api():
     
     prompt_sections = []
     
-    # Dynamically build the sections and instructions based on user selection
     requested_meals = []
     if plan_breakfast:
         requested_meals.append('Breakfast')
@@ -911,7 +1014,6 @@ def build_plan_api():
     if plan_dinner and takeout_days > 0:
         instruction += f" For Dinner, you must also create exactly {takeout_days} placeholder entries where the 'name' is 'Takeout Night' and the 'id' is null. The other {7-takeout_days} dinners must be selected from the recipe list."
     
-    # Add placeholders for unselected meals
     unrequested_meals = [meal for meal in ['Breakfast', 'Lunch', 'Dinner'] if meal not in requested_meals]
     if unrequested_meals:
         placeholder_instruction = f" For any meal slot not requested ({', '.join(unrequested_meals)}), you must use an object with 'id': null and 'name': 'Unplanned'."
@@ -930,7 +1032,6 @@ def build_plan_api():
             fav_list = ", ".join([f'"{r.name}"' for r in favorite_recipes])
             prompt_context += f"\nCONTEXT: The user enjoys these recipes: {fav_list}."
 
-    # Correctly build the sections string BEFORE the main f-string
     prompt_sections_str = "\n\n".join(prompt_sections)
 
     final_prompt = (
