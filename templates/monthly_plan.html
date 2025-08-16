@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<div class="alert alert-info py-2 px-4 mb-3" role="alert" style="width: 100%; font-size: 1.05em; border-radius: 0;">
+    <strong>Tip:</strong> If your monthly plan looks empty, make sure to add recipes to your weekly planner. Monthly plans are generated from your weekly selections!
+</div>
 <div class="monthly-plan-header no-print">
     <a href="{{ url_for('monthly_plan', year=nav.prev.year, month=nav.prev.month) }}" class="btn btn-secondary">&laquo; {{ nav.prev.strftime('%B') }}</a>
     <a href="{{ url_for('monthly_plan') }}" class="btn btn-secondary">Current Month</a>

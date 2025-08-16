@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_from_directory, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import desc
+from sqlalchemy import desc, and_
 from datetime import date, timedelta, datetime
 import os, csv, random, json, io, re, uuid, calendar
 from werkzeug.utils import secure_filename
@@ -10,13 +10,10 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_bcrypt import Bcrypt
 import pint 
 
-# --- NEW IMPORTS FOR PASSWORD RESET ---
 from itsdangerous import URLSafeTimedSerializer
 import smtplib
 from email.message import EmailMessage
-# --- END NEW IMPORTS ---
 
-# Import WhiteNoise
 from whitenoise import WhiteNoise
 
 import requests
@@ -25,7 +22,6 @@ from bs4 import BeautifulSoup
 load_dotenv()
 app = Flask(__name__)
 
-# Initialize WhiteNoise and tell it where to find static files
 app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -35,9 +31,8 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
-# --- NEW SERIALIZER FOR PASSWORD RESET TOKENS ---
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-# --- END NEW SERIALIZER ---
+
 
 def convert_quantity_to_float(quantity_str):
     if not isinstance(quantity_str, str):
@@ -68,7 +63,6 @@ def convert_quantity_to_float(quantity_str):
     except (ValueError, ZeroDivisionError):
         return 0.0
 
-# --- Pint Unit Registry, Context, and Sanitizer ---
 ureg = pint.UnitRegistry()
 
 cooking_conversions = {
@@ -143,6 +137,7 @@ class Household(db.Model):
     invitations = db.relationship('HouseholdInvitation', backref='household', lazy=True, cascade="all, delete-orphan")
     saved_meals = db.relationship('SavedMeal', backref='household', lazy=True, cascade="all, delete-orphan")
     historical_plans = db.relationship('HistoricalPlan', backref='household', lazy=True, cascade="all, delete-orphan")
+    grocery_stores = db.relationship('GroceryStore', backref='household', lazy=True, cascade="all, delete-orphan")
 
 
 class HouseholdInvitation(db.Model):
@@ -158,6 +153,12 @@ class User(db.Model, UserMixin):
     household_id = db.Column(db.Integer, db.ForeignKey('household.id'))
     household = db.relationship('Household', backref='members')
     recipes = db.relationship('Recipe', backref='author', lazy=True)
+
+class GroceryStore(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    search_url = db.Column(db.String(500), nullable=False)
 
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -229,16 +230,13 @@ class HistoricalPlan(db.Model):
 class HistoricalPlanEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     historical_plan_id = db.Column(db.Integer, db.ForeignKey('historical_plan.id'), nullable=False)
-    day_of_week = db.Column(db.Integer, nullable=False) # 0=Monday, 6=Sunday
+    day_of_week = db.Column(db.Integer, nullable=False)
     meal_slot = db.Column(db.String(50), nullable=False)
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=True)
     custom_item_name = db.Column(db.String(150), nullable=True)
     recipe = db.relationship('Recipe')
 
 
-# --- Routes ---
-
-# --- NEW HELPER FUNCTION TO SEND EMAIL ---
 def send_reset_email(user_email, token):
     msg = EmailMessage()
     msg['Subject'] = 'Password Reset Request for Meal Engine'
@@ -247,19 +245,7 @@ def send_reset_email(user_email, token):
     
     reset_url = url_for('reset_password', token=token, _external=True)
     
-    msg.set_content(f"""
-    Hello,
-
-    A password reset has been requested for your Meal Engine account.
-    Please click the link below to reset your password. This link is valid for 30 minutes.
-
-    {reset_url}
-
-    If you did not request this, please ignore this email.
-
-    Thanks,
-    The Meal Engine Team
-    """)
+    msg.set_content(f"Hello,\n\nA password reset has been requested for your Meal Engine account.\nPlease click the link below to reset your password. This link is valid for 30 minutes.\n\n{reset_url}\n\nIf you did not request this, please ignore this email.\n\nThanks,\nThe Meal Engine Team")
 
     try:
         with smtplib.SMTP(os.getenv('MAIL_SERVER'), int(os.getenv('MAIL_PORT'))) as server:
@@ -271,8 +257,6 @@ def send_reset_email(user_email, token):
     except Exception as e:
         print(f"Failed to send email: {e}")
         return False
-
-# --- AUTHENTICATION ROUTES ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -320,8 +304,6 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
-# --- NEW PASSWORD RESET ROUTES ---
-
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if current_user.is_authenticated:
@@ -336,7 +318,6 @@ def forgot_password():
             else:
                 flash('There was an error sending the email. Please try again later.', 'danger')
         else:
-            # Still show the same message to prevent user enumeration
             flash('A password reset link has been sent to your email.', 'info')
         return redirect(url_for('login'))
     return render_template('forgot_password.html')
@@ -347,7 +328,6 @@ def reset_password(token):
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     try:
-        # Token is valid for 1800 seconds (30 minutes)
         email = s.loads(token, salt='password-reset-salt', max_age=1800)
     except:
         flash('The password reset link is invalid or has expired.', 'warning')
@@ -372,8 +352,6 @@ def reset_password(token):
         return redirect(url_for('login'))
 
     return render_template('reset_password.html')
-
-# --- MAIN APPLICATION ROUTES ---
 
 @app.route('/')
 def index():
@@ -445,7 +423,7 @@ def ai_quick_add():
         Your output must be a single, valid JSON object with the following keys:
         - "name": The title of the recipe.
         - "instructions": A single string with steps separated by '\\n'.
-        - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', or 'Snack'.
+        - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', 'Snack', or 'Meal Prep'.
         - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
     """
     
@@ -723,58 +701,7 @@ def delete_historical_plan(plan_id):
     db.session.commit()
     return redirect(url_for('manage_plans'))
 
-
-@app.route('/meal-prep', methods=['GET', 'POST'])
-@login_required
-def meal_prep():
-    all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).order_by(Recipe.name).all()
-    
-    if request.method == 'POST':
-        recipe_ids = request.form.getlist('recipe_ids')
-        
-        total_ingredients = {}
-        total_nutrition = {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
-        selected_recipes_details = []
-
-        for recipe_id in recipe_ids:
-            try:
-                servings_input_name = f'servings-{recipe_id}'
-                desired_servings_str = request.form.get(servings_input_name)
-                
-                if desired_servings_str:
-                    desired_servings = int(desired_servings_str)
-                    if desired_servings <= 0: continue
-
-                    recipe = Recipe.query.get(int(recipe_id))
-                    if not recipe or recipe.household_id != current_user.household_id: continue
-                    
-                    selected_recipes_details.append({'recipe': recipe, 'servings': desired_servings})
-
-                    scaling_factor = desired_servings / (recipe.servings or 1)
-
-                    total_nutrition['calories'] += (recipe.calories or 0) * scaling_factor
-                    total_nutrition['protein'] += (recipe.protein or 0) * scaling_factor
-                    total_nutrition['fat'] += (recipe.fat or 0) * scaling_factor
-                    total_nutrition['carbs'] += (recipe.carbs or 0) * scaling_factor
-
-                    for ing in recipe.ingredients:
-                        key = (ing.ingredient.name, ing.unit)
-                        if key not in total_ingredients:
-                            total_ingredients[key] = 0
-                        total_ingredients[key] += ing.quantity * scaling_factor
-            
-            except (ValueError, ZeroDivisionError, TypeError):
-                continue
-        
-        return render_template('meal_prep.html', 
-                               recipes=all_recipes, 
-                               total_ingredients=total_ingredients,
-                               total_nutrition=total_nutrition,
-                               selected_recipes_details=selected_recipes_details)
-
-    return render_template('meal_prep.html', recipes=all_recipes)
-
-@app.route('/monthly-plan', methods=['GET'])
+@app.route('/monthly-plan')
 @login_required
 def monthly_plan():
     try:
@@ -828,24 +755,78 @@ def monthly_plan():
 def ai_architect():
     today = date.today()
     start_of_week = today - timedelta(days=today.weekday())
-    return render_template('ai_architect.html', today=today, start_of_week=start_of_week)
+    
+    all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).order_by(Recipe.name).all()
+    
+    recipes_by_type = {
+        'Main Course': [r for r in all_recipes if r.meal_type == 'Main Course'],
+        'Side Dish': [r for r in all_recipes if r.meal_type == 'Side Dish'],
+        'Snack': [r for r in all_recipes if r.meal_type == 'Snack'],
+        'Meal Prep': [r for r in all_recipes if r.meal_type == 'Meal Prep']
+    }
+    
+    recipes_for_js = {
+        'Main Course': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Main Course']],
+        'Side Dish': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Side Dish']],
+        'Snack': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Snack']],
+        'Meal Prep': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Meal Prep']]
+    }
 
-@app.route('/household', methods=['GET', 'POST'])
+    return render_template('ai_architect.html', today=today, start_of_week=start_of_week, calendar=calendar, recipes_for_js=recipes_for_js)
+
+@app.route('/household', methods=['GET'])
 @login_required
 def household_page():
-    if request.method == 'POST':
-        HouseholdInvitation.query.filter_by(household_id=current_user.household_id).delete()
-        
-        token = str(uuid.uuid4())
-        expires = datetime.utcnow() + timedelta(hours=24)
-        new_invitation = HouseholdInvitation(household_id=current_user.household_id, token=token, expires_at=expires)
-        db.session.add(new_invitation)
-        db.session.commit()
-        
-        invite_link = url_for('join_household', token=token, _external=True)
-        return jsonify({'invite_link': invite_link})
+    return redirect(url_for('profile'))
 
-    return render_template('household.html')
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'generate_invite':
+            HouseholdInvitation.query.filter_by(household_id=current_user.household_id).delete()
+            token = str(uuid.uuid4())
+            expires = datetime.utcnow() + timedelta(hours=24)
+            new_invitation = HouseholdInvitation(household_id=current_user.household_id, token=token, expires_at=expires)
+            db.session.add(new_invitation)
+            db.session.commit()
+            invite_link = url_for('join_household', token=token, _external=True)
+            return jsonify({'invite_link': invite_link})
+
+        elif action == 'update_household_name':
+            new_name = request.form.get('household_name')
+            if new_name:
+                current_user.household.name = new_name
+                db.session.commit()
+                flash('Household name updated successfully.', 'success')
+            return redirect(url_for('profile'))
+
+        elif action == 'add_store':
+            store_name = request.form.get('name')
+            search_url = request.form.get('search_url')
+            if store_name and search_url and '{query}' in search_url:
+                new_store = GroceryStore(household_id=current_user.household_id, name=store_name, search_url=search_url)
+                db.session.add(new_store)
+                db.session.commit()
+                flash(f'Grocery store "{store_name}" added.', 'success')
+            else:
+                flash('Invalid store name or URL. Make sure the URL contains "{query}".', 'danger')
+            return redirect(url_for('profile'))
+
+        elif action == 'delete_store':
+            store_id = request.form.get('store_id')
+            store_to_delete = GroceryStore.query.filter_by(id=store_id, household_id=current_user.household_id).first()
+            if store_to_delete:
+                flash(f'Grocery store "{store_to_delete.name}" removed.', 'success')
+                db.session.delete(store_to_delete)
+                db.session.commit()
+            return redirect(url_for('profile'))
+
+    stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
+    return render_template('profile.html', stores=stores)
+
 
 @app.route('/join-household/<token>')
 @login_required
@@ -854,11 +835,11 @@ def join_household(token):
 
     if not invitation or invitation.expires_at < datetime.utcnow():
         flash('This invitation link is invalid or has expired.', 'danger')
-        return redirect(url_for('household_page'))
+        return redirect(url_for('profile'))
 
     if current_user.household_id == invitation.household_id:
         flash('You are already a member of this household.', 'info')
-        return redirect(url_for('household_page'))
+        return redirect(url_for('profile'))
 
     old_household = current_user.household
     if len(old_household.members) == 1:
@@ -869,7 +850,7 @@ def join_household(token):
     db.session.commit()
 
     flash(f'You have successfully joined the "{invitation.household.name}" household!', 'success')
-    return redirect(url_for('household_page'))
+    return redirect(url_for('profile'))
 
 
 @app.route('/api/import-and-create-recipe', methods=['POST'])
@@ -900,7 +881,7 @@ def import_and_create_recipe():
             - "name": The title of the recipe.
             - "servings": The number of servings.
             - "instructions": A single string with steps separated by '\\n'.
-            - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', or 'Snack'.
+            - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', 'Snack', or 'Meal Prep'.
             - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
         """)
         
@@ -978,47 +959,28 @@ def import_and_create_recipe():
 @login_required
 def build_plan_api():
     data = request.get_json()
+    duration = data.get('duration', 'week')
     theme = data.get('theme')
     use_pantry = data.get('use_pantry', False)
     focus_favorites = data.get('focus_favorites', False)
-    plan_breakfast = data.get('plan_breakfast', False)
-    plan_lunch = data.get('plan_lunch', False)
-    plan_dinner = data.get('plan_dinner', False)
     takeout_days = int(data.get('takeout_days', 0))
 
     all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     
-    prompt_sections = []
+    breakfast_recipes = [r for r in all_recipes if r.meal_type in ('Breakfast', 'Snack')]
+    lunch_recipes = [r for r in all_recipes if r.meal_type in ('Lunch', 'Side Dish', 'Main Course', 'Meal Prep')]
+    dinner_recipes = [r for r in all_recipes if r.meal_type in ('Main Course', 'Meal Prep')]
     
-    requested_meals = []
-    if plan_breakfast:
-        requested_meals.append('Breakfast')
-        breakfast_recipes = [r for r in all_recipes if r.meal_type in ('Breakfast', 'Snack')]
-        breakfast_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in breakfast_recipes]) if breakfast_recipes else "No breakfast recipes available."
-        prompt_sections.append(f"Available Breakfasts (can also use Snacks):\n{breakfast_list}")
+    breakfast_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in breakfast_recipes]) if breakfast_recipes else "No breakfast recipes available."
+    lunch_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in lunch_recipes]) if lunch_recipes else "No lunch recipes available."
+    dinner_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in dinner_recipes]) if dinner_recipes else "No dinner recipes available."
 
-    if plan_lunch:
-        requested_meals.append('Lunch')
-        lunch_recipes = [r for r in all_recipes if r.meal_type in ('Lunch', 'Side Dish', 'Main Course')]
-        lunch_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in lunch_recipes]) if lunch_recipes else "No lunch recipes available."
-        prompt_sections.append(f"Available Lunches (can also use Sides or Mains):\n{lunch_list}")
-
-    if plan_dinner:
-        requested_meals.append('Dinner')
-        dinner_recipes = [r for r in all_recipes if r.meal_type in ('Main Course',)]
-        dinner_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in dinner_recipes]) if dinner_recipes else "No dinner recipes available."
-        prompt_sections.append(f"Available Dinners:\n{dinner_list}")
-
-    
-    instruction = f"You must select recipes for {', '.join(requested_meals)} for each of the 7 days (Monday to Sunday)."
-    if plan_dinner and takeout_days > 0:
-        instruction += f" For Dinner, you must also create exactly {takeout_days} placeholder entries where the 'name' is 'Takeout Night' and the 'id' is null. The other {7-takeout_days} dinners must be selected from the recipe list."
-    
-    unrequested_meals = [meal for meal in ['Breakfast', 'Lunch', 'Dinner'] if meal not in requested_meals]
-    if unrequested_meals:
-        placeholder_instruction = f" For any meal slot not requested ({', '.join(unrequested_meals)}), you must use an object with 'id': null and 'name': 'Unplanned'."
-    else:
-        placeholder_instruction = ""
+    prompt_sections = [
+        f"Available Breakfasts:\n{breakfast_list}",
+        f"Available Lunches:\n{lunch_list}",
+        f"Available Dinners:\n{dinner_list}"
+    ]
+    prompt_sections_str = "\n\n".join(prompt_sections)
 
     prompt_context = ""
     if use_pantry:
@@ -1032,27 +994,127 @@ def build_plan_api():
             fav_list = ", ".join([f'"{r.name}"' for r in favorite_recipes])
             prompt_context += f"\nCONTEXT: The user enjoys these recipes: {fav_list}."
 
-    prompt_sections_str = "\n\n".join(prompt_sections)
+    if duration == 'month':
+        year = int(data.get('year'))
+        month = int(data.get('month'))
+        _, num_days = calendar.monthrange(year, month)
+        
+        instruction = (
+            f"You must select recipes for Breakfast, Lunch, and Dinner for each of the {num_days} days of the month. Follow these rules:\n"
+            f"1. Create exactly {takeout_days} 'Takeout Night' dinners (id: null). Space them out logically, preferably on Fridays or Saturdays.\n"
+            "2. For economy and to reduce waste, plan for 'Leftovers' for lunch (id: null). A dinner recipe should typically be followed by a 'Leftovers' lunch the next day.\n"
+            "3. Ensure high variety. Do not repeat the same dinner recipe within a 10-day period. Breakfasts can be repeated more often.\n"
+            "4. The overall plan must feel logical and not random. Group similar cuisine types if it makes sense (e.g., a couple of Italian dishes in one week)."
+        )
+
+        json_structure = (f"Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the month as strings ('1', '2', ..., '{num_days}'). "
+                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'.")
+    else: # week
+        instruction = (
+            f"You must select recipes for Breakfast, Lunch, and Dinner for each of the 7 days (Monday to Sunday). Follow these rules:\n"
+            f"1. Create exactly {takeout_days} 'Takeout Night' dinners (id: null).\n"
+            "2. Plan for 'Leftovers' for lunch on at least 2-3 days, following a dinner from the previous night.\n"
+            "3. Do not repeat recipes."
+        )
+        json_structure = ("Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the week ('Monday',..., 'Sunday'). "
+                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'.")
 
     final_prompt = (
-        f"You are a Meal Plan Architect. Create a diverse 7-day meal plan based on the theme: '{theme}'.\n"
-        f"{instruction} Do not repeat recipes.{placeholder_instruction}{prompt_context}\n\n"
+        f"You are a Meal Plan Architect. Create a diverse and logical meal plan based on the theme: '{theme}'.\n"
+        f"{instruction}{prompt_context}\n\n"
         f"{prompt_sections_str}\n\n"
-        f"Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the week ('Monday',..., 'Sunday'). Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'."
+        f"{json_structure}"
     )
     
     try:
         model = genai.GenerativeModel('gemini-1.5-pro')
         response = model.generate_content(final_prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"))
         plan_data = json.loads(response.text.strip())
-        
-        if 'Monday' not in plan_data:
-            raise ValueError("AI response did not follow the required JSON structure.")
 
-        return jsonify(plan_data)
+        response_payload = {'duration': duration, 'plan': plan_data}
+        if duration == 'month':
+            response_payload['year'] = year
+            response_payload['month'] = month
+        
+        return jsonify(response_payload)
     except Exception as e:
         print(f"Build Plan Error: {e}\nResponse Text: {response.text if 'response' in locals() else 'No response'}")
         return jsonify({'error': f'The AI failed to generate a valid plan. Details: {str(e)}'}), 500
+
+
+@app.route('/api/save-ai-plan', methods=['POST'])
+@login_required
+def save_ai_plan():
+    data = request.get_json()
+    plan_data = data.get('plan')
+    duration = data.get('duration')
+
+    try:
+        if duration == 'month':
+            year = int(data.get('year'))
+            month = int(data.get('month'))
+            
+            start_date = date(year, month, 1)
+            end_date = date(year, month, calendar.monthrange(year, month)[1])
+
+            MealPlan.query.filter(
+                and_(
+                    MealPlan.household_id == current_user.household_id,
+                    MealPlan.meal_date.between(start_date, end_date)
+                )
+            ).delete(synchronize_session=False)
+
+            for day_str, meals in plan_data.items():
+                day_num = int(day_str)
+                current_date = date(year, month, day_num)
+                for slot, meal in meals.items():
+                    if meal and meal.get('name') and meal['name'] != 'Unplanned':
+                        new_entry = MealPlan(
+                            household_id=current_user.household_id,
+                            meal_date=current_date,
+                            meal_slot=slot,
+                            recipe_id=meal.get('id'),
+                            custom_item_name=None if meal.get('id') else meal.get('name')
+                        )
+                        db.session.add(new_entry)
+            
+            flash(f'Your AI-generated plan for {start_date.strftime("%B %Y")} has been saved!', 'success')
+            redirect_url = url_for('monthly_plan', year=year, month=month)
+
+        else: # duration == 'week'
+            today = date.today()
+            start_of_week = today - timedelta(days=today.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+
+            MealPlan.query.filter(
+                MealPlan.household_id == current_user.household_id,
+                MealPlan.meal_date.between(start_of_week, end_of_week)
+            ).delete(synchronize_session=False)
+
+            days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            for i, day_name in enumerate(days_of_week):
+                current_date = start_of_week + timedelta(days=i)
+                meals = plan_data.get(day_name, {})
+                for slot, meal in meals.items():
+                    if meal and meal.get('name') and meal['name'] != 'Unplanned':
+                        new_entry = MealPlan(
+                            household_id=current_user.household_id,
+                            meal_date=current_date,
+                            meal_slot=slot,
+                            recipe_id=meal.get('id'),
+                            custom_item_name=None if meal.get('id') else meal.get('name')
+                        )
+                        db.session.add(new_entry)
+            
+            flash('Your AI-generated weekly plan has been saved!', 'success')
+            redirect_url = url_for('meal_plan', start_date=start_of_week.strftime('%Y-%m-%d'))
+        
+        db.session.commit()
+        return jsonify({'success': True, 'redirect_url': redirect_url})
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/set-rating/<int:recipe_id>', methods=['POST'])
@@ -1361,7 +1423,7 @@ def meal_plan():
             MealPlan.household_id == current_user.household_id, 
             MealPlan.meal_date.between(week_start_date, end_of_week)
         ).delete(synchronize_session=False)
-        
+
         for i in range(7):
             current_day = week_start_date + timedelta(days=i)
             day_str = current_day.strftime('%Y-%m-%d')
@@ -1412,6 +1474,7 @@ def meal_plan():
     next_week_start = start_of_week + timedelta(days=7)
 
     days_of_week = [(start_of_week + timedelta(days=i)) for i in range(7)]
+    
     all_meals = MealPlan.query.filter(
         MealPlan.household_id == current_user.household_id,
         MealPlan.meal_date.between(start_of_week, end_of_week)
@@ -1429,14 +1492,16 @@ def meal_plan():
         'Main Course': [r for r in all_recipes if r.meal_type == 'Main Course'],
         'Side Dish': [r for r in all_recipes if r.meal_type == 'Side Dish'],
         'Dessert': [r for r in all_recipes if r.meal_type == 'Dessert'],
-        'Snack': [r for r in all_recipes if r.meal_type == 'Snack']
+        'Snack': [r for r in all_recipes if r.meal_type == 'Snack'],
+        'Meal Prep': [r for r in all_recipes if r.meal_type == 'Meal Prep']
     }
     
     recipes_for_js = {
         'Main Course': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Main Course']],
         'Side Dish': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Side Dish']],
         'Dessert': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Dessert']],
-        'Snack': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Snack']]
+        'Snack': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Snack']],
+        'Meal Prep': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Meal Prep']]
     }
 
     historical_plans = HistoricalPlan.query.filter_by(household_id=current_user.household_id).order_by(HistoricalPlan.name).all()
@@ -1474,21 +1539,20 @@ def load_historical_plan(plan_id):
     return jsonify(plan_data)
 
 
-@app.route('/shopping-list')
+@app.route('/shopping-list', methods=['GET', 'POST'])
 @login_required
 def shopping_list():
     today = date.today()
-    start_of_week = today - timedelta(days=today.weekday())
-    end_of_week = start_of_week + timedelta(days=6)
-    
-    planned_meals = MealPlan.query.filter(
+    end_date_for_shopping = today + timedelta(days=6)
+
+    all_planned_meals = MealPlan.query.filter(
         MealPlan.household_id == current_user.household_id, 
         MealPlan.recipe_id.isnot(None),
-        MealPlan.meal_date.between(start_of_week, end_of_week)
+        MealPlan.meal_date.between(today, end_date_for_shopping)
     ).all()
-
+    
     required = {}
-    for meal in planned_meals:
+    for meal in all_planned_meals:
         for item in meal.recipe.ingredients:
             if not item.quantity or item.quantity == 0: continue
             
@@ -1544,9 +1608,12 @@ def shopping_list():
             grouped_list[category] = {}
         grouped_list[category][name] = details
 
+    stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
+
     return render_template('shopping_list.html', 
                            grouped_list=grouped_list,
-                           ingredients_in_pantry=in_pantry)
+                           ingredients_in_pantry=in_pantry,
+                           stores=stores)
 
 @app.route('/export/recipes')
 @login_required

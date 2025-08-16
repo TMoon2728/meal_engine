@@ -132,6 +132,9 @@ h1, h2, h3, h4, h5 { color: var(--text-dark); font-weight: 600; }
 .recipe-card.meal-type-dessert { background-color: #f8f9fa; color: var(--text-dark); border: 1px dashed var(--secondary-blue); }
 .recipe-card.meal-type-snack { background-color: #e9fff8; color: var(--text-dark); border: 1px solid var(--snack-teal); }
 .recipe-card.meal-type-custom { background-color: #f1f3f5; color: var(--text-dark); border: 1px dashed #adb5bd; font-style: italic; }
+/* NEW: Style for Meal Prep items on the planner */
+.recipe-card.meal-type-meal-prep { background-color: #f3eaff; color: #5a3e8d; border: 1px solid #c7a7ff; font-weight: 600; }
+
 
 .meal-type-slot { background-color: #f8f9fa; border-radius: 8px; padding: 8px; min-height: 50px; border: 2px dashed #e9ecef; margin-bottom: 1rem; }
 .day-card-body h6 { font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px; }

@@ -9,11 +9,13 @@
       </div>
       <div class="form-group col-md-4">
         <label for="meal_type">Meal Type</label>
+        <!-- UPDATED: Added "Meal Prep" as an option -->
         <select id="meal_type" name="meal_type" class="form-control">
             <option value="Main Course" {% if recipe.meal_type == 'Main Course' %}selected{% endif %}>Main Course</option>
             <option value="Side Dish" {% if recipe.meal_type == 'Side Dish' %}selected{% endif %}>Side Dish</option>
             <option value="Dessert" {% if recipe.meal_type == 'Dessert' %}selected{% endif %}>Dessert</option>
             <option value="Snack" {% if recipe.meal_type == 'Snack' %}selected{% endif %}>Snack</option>
+            <option value="Meal Prep" {% if recipe.meal_type == 'Meal Prep' %}selected{% endif %}>Meal Prep</option>
         </select>
       </div>
     </div>

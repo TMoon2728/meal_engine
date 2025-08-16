@@ -42,7 +42,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    overflow: hidden; 
+    /* THIS IS THE FIX: The conflicting 'overflow: hidden;' rule has been removed. */
 }
 
 .calendar-day .day-number {
@@ -81,7 +81,6 @@
     margin-bottom: 4px;
     position: relative;
     line-height: 1.2;
-    /* FIX: Allow text to wrap */
     white-space: normal;
     word-break: break-word;
     border: 1px solid transparent;

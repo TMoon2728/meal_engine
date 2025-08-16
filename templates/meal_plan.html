@@ -4,10 +4,9 @@
     <input type="hidden" name="historical_plan_name" id="historical-plan-name-input">
     <input type="hidden" name="week_start_date" value="{{ start_of_week.strftime('%Y-%m-%d') }}">
 
-    <!-- ===== UPDATED HEADER ===== -->
+    <!-- ===== HEADER ===== -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap no-print">
         
-        <!-- Title on the left -->
         <div class="mr-auto">
              <h1 class="mb-0">
                 <i class="fas fa-calendar-alt"></i> Meal Plan
@@ -15,9 +14,7 @@
             </h1>
         </div>
         
-        <!-- Grouped Buttons on the right -->
         <div class="d-flex align-items-center">
-            <!-- New "Actions" Dropdown -->
             <div class="btn-group mr-2">
                 <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     Actions
@@ -40,7 +37,6 @@
                 </div>
             </div>
 
-            <!-- Navigation Buttons -->
             <div class="btn-group mr-2">
                 <a href="{{ url_for('meal_plan', start_date=prev_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">&laquo;</a>
                 <a href="{{ url_for('meal_plan') }}" class="btn btn-secondary">Today</a>
@@ -49,7 +45,6 @@
                 <a href="{{ url_for('meal_plan', start_date=next_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">&raquo;</a>
             </div>
             
-            <!-- Final Apply Button -->
             <button type="submit" id="save-plan-btn" class="btn btn-primary"><i class="fas fa-check"></i> Apply Changes</button>
         </div>
     </div>
@@ -74,13 +69,15 @@
                                 <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#side-tray">Sides</a>
                                 <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#dessert-tray">Desserts</a>
                                 <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#snack-tray">Snacks</a>
-                                <a class="nav-item nav-link col-12 text-center" data-toggle="tab" href="#saved-meals-tab">Saved Meals</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#prep-tray">Meal Prep</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#saved-meals-tab">Saved Meals</a>
                             </div>
                             <div class="tab-content pt-3" id="recipe-tray-container">
                                 <div class="tab-pane fade show active" id="main-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
                                 <div class="tab-pane fade" id="side-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
                                 <div class="tab-pane fade" id="dessert-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
                                 <div class="tab-pane fade" id="snack-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="prep-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
                                 <div class="tab-pane fade" id="saved-meals-tab" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
                             </div>
                         </div>
@@ -111,22 +108,34 @@
                                 {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
                                 <div class="d-flex justify-content-between align-items-center">
                                     <h6 class="meal-type-header">{{ slot }}</h6>
+                                    {% if slot != 'Snack' %}
                                     <button type="button" class="btn btn-success btn-sm meal-made-btn no-print" data-date="{{ day_str }}" data-slot="{{ slot }}" title="Mark as made and remove ingredients from pantry"><i class="fas fa-check"></i></button>
+                                    {% endif %}
                                 </div>
-                                <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-{{ slot }}">
-                                    {% for meal in planned_meals[day_str][slot] %}
-                                    {% if meal.recipe_id %}<div class="recipe-card meal-type-{{ meal.recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ meal.recipe.id }}" data-meal-type="{{ meal.recipe.meal_type }}">{{ meal.recipe.name }}<span class="remove-recipe-btn no-print">×</span></div>
-                                    {% elif meal.custom_item_name %}<div class="recipe-card meal-type-custom" data-item-name="{{ meal.custom_item_name }}">{{ meal.custom_item_name }}<span class="remove-recipe-btn no-print">×</span></div>{% endif %}
-                                    {% endfor %}
+                                <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-{{ slot|replace(' ', '-') }}">
+                                    {% if planned_meals[day_str] and planned_meals[day_str][slot] %}
+                                        {% for meal in planned_meals[day_str][slot] %}
+                                            {% if meal.recipe_id %}
+                                                <div class="recipe-card meal-type-{{ meal.meal_slot|lower|replace(' ', '-') }}" data-recipe-id="{{ meal.recipe.id }}" data-meal-type="{{ meal.meal_slot }}">{{ meal.custom_item_name or meal.recipe.name }}<span class="remove-recipe-btn no-print">×</span></div>
+                                            {% elif meal.custom_item_name %}
+                                                <div class="recipe-card meal-type-custom" data-item-name="{{ meal.custom_item_name }}">{{ meal.custom_item_name }}<span class="remove-recipe-btn no-print">×</span></div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
                                 </div>
                                 {% endfor %}
                             </div>
                             <div class="hidden-inputs">
                                 {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
-                                {% for meal in planned_meals[day_str][slot] %}
-                                {% if meal.recipe_id %}<input type="hidden" name="day-{{ day_str }}-{{ slot }}-recipe[]" value="{{ meal.recipe.id }}">
-                                {% elif meal.custom_item_name %}<input type="hidden" name="day-{{ day_str }}-{{ slot }}-custom[]" value="{{ meal.custom_item_name }}">{% endif %}
-                                {% endfor %}
+                                    {% if planned_meals[day_str] and planned_meals[day_str][slot] %}
+                                        {% for meal in planned_meals[day_str][slot] %}
+                                            {% if meal.recipe_id %}
+                                                <input type="hidden" name="day-{{ day_str }}-{{ slot }}-recipe[]" value="{{ meal.recipe.id }}">
+                                            {% elif meal.custom_item_name %}
+                                                <input type="hidden" name="day-{{ day_str }}-{{ slot }}-custom[]" value="{{ meal.custom_item_name }}">
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
@@ -175,8 +184,9 @@
                 const inputContainer = dayCard.querySelector('.hidden-inputs');
                 inputContainer.innerHTML = '';
                 dayCard.querySelectorAll('.meal-type-slot .recipe-card').forEach(card => {
-                    const idParts = card.closest('.meal-type-slot').id.split('-');
-                    const slot = idParts[idParts.length - 1];
+                    const slotId = card.closest('.meal-type-slot').id;
+                    const slot = slotId.endsWith('Meal-Prep') ? 'Meal Prep' : slotId.split('-').pop();
+                    
                     const hiddenInput = document.createElement('input');
                     hiddenInput.type = 'hidden';
                     if (card.dataset.recipeId) {
@@ -191,13 +201,22 @@
             });
         }
 
+        // *** THIS IS THE BUG FIX ***
+        // This function is now "safer" and will only clear the trays it has data for.
+        // It will no longer accidentally wipe out the Saved Meals tray.
         function renderRecipeTray(recipes) {
-            document.querySelectorAll('#main-tray .recipe-tray, #side-tray .recipe-tray, #dessert-tray .recipe-tray, #snack-tray .recipe-tray').forEach(tray => tray.innerHTML = '');
             for (const mealType in recipes) {
-                const simpleId = mealType.split(' ')[0].toLowerCase() + '-tray';
+                let simpleId;
+                if (mealType === 'Meal Prep') {
+                    simpleId = 'prep-tray';
+                } else {
+                    simpleId = mealType.split(' ')[0].toLowerCase() + '-tray';
+                }
                 const targetTray = document.querySelector(`#${simpleId} .recipe-tray`);
+
                 if (targetTray) {
-                    recipes[mealType].slice(0, 6).forEach(recipe => {
+                    targetTray.innerHTML = ''; // Clear only this specific tray
+                    recipes[mealType].forEach(recipe => {
                         const card = createCard({ type: 'recipe', ...recipe }, false);
                         card.classList.add('recipe-tray-item');
                         targetTray.appendChild(card);
@@ -212,7 +231,7 @@
                 new Sortable(list, {
                     group: { name: 'shared-group', pull: 'clone', put: true },
                     animation: 150,
-                    sort: (list.id.includes('tray')),
+                    sort: true,
                     onAdd: function(evt) {
                         const item = evt.item;
                         const to = evt.to;
@@ -306,7 +325,7 @@
                         const targetDayCard = dayCards[parseInt(dayIndex)];
                         if (targetDayCard) {
                             for (const slotName in data[dayIndex]) {
-                                const targetSlotEl = targetDayCard.querySelector(`#day-${targetDayCard.dataset.dayStr}-${slotName}`);
+                                const targetSlotEl = targetDayCard.querySelector(`#day-${targetDayCard.dataset.dayStr}-${slotName.replace(' ', '-')}`);
                                 if (targetSlotEl) {
                                     data[dayIndex][slotName].forEach(item => {
                                         targetSlotEl.appendChild(createCard(item));
@@ -332,20 +351,24 @@
             renderRecipeTray(filtered);
         });
 
+        function generateSuggestions(allRecipes) {
+            const suggestions = {};
+            for (const mealType in allRecipes) {
+                const recipesForType = allRecipes[mealType];
+                if (recipesForType.length > 0) {
+                    const shuffled = [...recipesForType].sort(() => 0.5 - Math.random());
+                    const sampleSize = Math.min(recipesForType.length, 5);
+                    suggestions[mealType] = shuffled.slice(0, sampleSize);
+                } else {
+                    suggestions[mealType] = [];
+                }
+            }
+            return suggestions;
+        }
+
         document.getElementById('suggest-recipes-btn').addEventListener('click', () => {
-            fetch('/api/suggest-recipes')
-                .then(res => res.json())
-                .then(suggestedRecipes => {
-                    const groupedSuggestions = {
-                        'Main Course': [], 'Side Dish': [], 'Dessert': [], 'Snack': []
-                    };
-                    suggestedRecipes.forEach(recipe => {
-                        if (groupedSuggestions[recipe.meal_type]) {
-                            groupedSuggestions[recipe.meal_type].push(recipe);
-                        }
-                    });
-                    renderRecipeTray(groupedSuggestions);
-                });
+            const suggestedRecipes = generateSuggestions(allRecipesForJs);
+            renderRecipeTray(suggestedRecipes);
         });
 
         const datePickerInput = document.getElementById('date-picker-input');

@@ -32,8 +32,8 @@
                 Planner
               </a>
               <div class="dropdown-menu" aria-labelledby="plannerDropdown">
-                <a class="dropdown-item" href="{{ url_for('monthly_plan') }}">Monthly Plan</a>
-                <a class="dropdown-item" href="{{ url_for('meal_plan') }}">Weekly Plan</a>
+                  <a class="dropdown-item" href="{{ url_for('meal_plan') }}">Weekly Plan</a>
+                  <a class="dropdown-item" href="{{ url_for('monthly_plan') }}">Monthly Plan</a>
                 <a class="dropdown-item" href="{{ url_for('ai_architect') }}">AI Architect</a>
               </div>
             </li>
@@ -49,9 +49,9 @@
               </div>
             </li>
 
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('meal_prep') }}">Meal Prep</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('shopping_list') }}">Shopping List</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('household_page') }}">Household</a></li>
+            <!-- UPDATED: This link now points to the new 'profile' route -->
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">Profile</a></li>
 
           {% endif %}
         </ul>
@@ -88,11 +88,10 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-    <!-- CRITICALLY UPDATED SERVICE WORKER SCRIPT -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register("{{ url_for('static', filename='js/service-worker.js') }}", { scope: '/' }) // <-- THE FIX IS HERE
+          navigator.serviceWorker.register("{{ url_for('static', filename='js/service-worker.js') }}", { scope: '/' })
             .then(registration => {
               console.log('ServiceWorker registration successful with scope: ', registration.scope);
             }, err => {

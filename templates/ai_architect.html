@@ -2,47 +2,89 @@
 {% block content %}
 
 <div class="row">
+    <!-- NEW: Recipe Tray Column -->
+    <div class="col-md-2 no-print">
+        <div class="sticky-top" style="top: 1rem;">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-utensils"></i> Recipe Tray</h5>
+                </div>
+                <div class="card-body">
+                    <input type="search" id="recipe-search" class="form-control mb-3" placeholder="Search...">
+                    <div class="nav nav-tabs" id="recipeTypeTab" role="tablist">
+                        <a class="nav-item nav-link active col-6 text-center" data-toggle="tab" href="#main-tray">Mains</a>
+                        <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#side-tray">Sides</a>
+                        <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#snack-tray">Snacks</a>
+                        <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#prep-tray">Meal Prep</a>
+                    </div>
+                    <div class="tab-content pt-3" id="recipe-tray-container">
+                        <div class="tab-pane fade show active" id="main-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                        <div class="tab-pane fade" id="side-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                        <div class="tab-pane fade" id="snack-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                        <div class="tab-pane fade" id="prep-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                    </div>
+                </div>
+            </div>
+             <div class="card mb-2 no-print">
+                <div class="card-header"><h5 class="mb-0"><i class="fas fa-plus-circle"></i> Custom Items</h5></div>
+                <div class="card-body">
+                    <div class="input-group">
+                        <input type="text" id="custom-item-input" class="form-control" placeholder="e.g., Leftovers">
+                        <div class="input-group-append"><button class="btn btn-outline-secondary" type="button" id="add-custom-item-btn">+</button></div>
+                    </div>
+                    <div id="custom-item-tray" class="sortable-list recipe-tray mt-2" style="min-height: 38px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Main AI Architect Card -->
-    <div class="col-12">
+    <div class="col-md-10">
         <div class="card mb-3">
             <div class="card-body">
                 <div class="text-center">
                     <h1><i class="fas fa-magic"></i> AI Meal Plan Architect</h1>
-                    <p class="lead mb-0">Choose your directives and let the AI build a plan for the week!</p>
+                    <p class="lead mb-0">Choose your directives and let the AI build a plan for you!</p>
                 </div>
                 <hr>
                 <div class="row align-items-end">
                     <div class="col-md-9">
                         <div class="row">
-                            <div class="col-lg-4 form-group">
-                                <label for="plan-theme"><strong>Choose a Theme:</strong></label>
-                                <select id="plan-theme" class="form-control">
-                                    <option value="A Balanced and Varied Week">A Balanced Week</option>
-                                    <option value="Quick & Easy Dinners (under 30 mins)">Quick & Easy Week</option>
-                                    <option value="Hearty Comfort Food Classics">Comfort Food Classics</option>
-                                    <option value="Healthy & Light Options">Healthy & Light Options</option>
-                                    <option value="Global Cuisine Tour (Italian, Mexican, Asian)">Global Cuisine Tour</option>
-                                    <option value="Vegetarian Delight">Vegetarian Delight</option>
-                                    <option value="Kid-Friendly Favorites">Kid-Friendly Favorites</option>
-                                    <option value="High-Protein Power Week">High-Protein Power Week</option>
+                            <div class="col-lg-3 form-group">
+                                <label for="plan-duration"><strong>Plan Duration:</strong></label>
+                                <select id="plan-duration" class="form-control">
+                                    <option value="week">This Week</option>
+                                    <option value="month">A Full Month</option>
                                 </select>
                             </div>
-                            <div class="col-lg-4 form-group">
-                                <label><strong>Plan for which meals?</strong></label>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="plan-breakfast" checked>
-                                    <label class="form-check-label" for="plan-breakfast">Breakfast</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="plan-lunch" checked>
-                                    <label class="form-check-label" for="plan-lunch">Lunch</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="plan-dinner" checked>
-                                    <label class="form-check-label" for="plan-dinner">Dinner</label>
+                             <div class="col-lg-3 form-group" id="month-year-selector" style="display: none;">
+                                <label for="plan-month"><strong>For Month/Year:</strong></label>
+                                <div class="d-flex">
+                                    <select id="plan-month" class="form-control mr-2">
+                                        {% for i in range(1, 13) %}
+                                        <option value="{{ i }}" {% if i == today.month %}selected{% endif %}>{{ calendar.month_name[i] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <select id="plan-year" class="form-control">
+                                        <option value="{{ today.year }}">{{ today.year }}</option>
+                                        <option value="{{ today.year + 1 }}">{{ today.year + 1 }}</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div class="col-lg-4 form-group">
+                            <div class="col-lg-3 form-group">
+                                <label for="plan-theme"><strong>Choose a Theme:</strong></label>
+                                <select id="plan-theme" class="form-control">
+                                    <option value="A Balanced and Varied Plan">A Balanced Plan</option>
+                                    <option value="Quick & Easy Dinners (under 30 mins)">Quick & Easy</option>
+                                    <option value="Hearty Comfort Food Classics">Comfort Food Classics</option>
+                                    <option value="Healthy & Light Options">Healthy & Light</option>
+                                    <option value="Global Cuisine Tour">Global Cuisine Tour</option>
+                                    <option value="Vegetarian Delight">Vegetarian Delight</option>
+                                    <option value="Kid-Friendly Favorites">Kid-Friendly</option>
+                                    <option value="High-Protein Power Week">High-Protein</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3 form-group">
                                 <label><strong>Other Directives:</strong></label>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="use-pantry">
@@ -55,7 +97,7 @@
                             </div>
                         </div>
                          <div class="form-group mb-0">
-                            <label for="takeout-days"><i class="fas fa-utensils"></i> Takeout / Restaurant Days (Dinners): <strong id="takeout-days-label">0</strong></label>
+                            <label for="takeout-days"><i class="fas fa-utensils"></i> Takeout / Restaurant Dinners: <strong id="takeout-days-label">0</strong></label>
                             <input type="range" class="custom-range" id="takeout-days" min="0" max="7" value="0">
                         </div>
                     </div>
@@ -66,110 +108,269 @@
             </div>
         </div>
         
-        <!-- Results Area -->
-        <form method="POST" action="{{ url_for('meal_plan') }}" id="ai-plan-form" style="display: none;">
-             <input type="hidden" name="week_start_date" value="{{ start_of_week.isoformat() }}">
-             <div id="ai-plan-results"></div>
-        </form>
+        <div id="ai-plan-results-container"></div>
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const startOfWeekISO = "{{ start_of_week.isoformat() }}";
+    const allRecipesForJs = {{ recipes_for_js | tojson }};
     const buildBtn = document.getElementById('build-plan-btn');
-    const resultsDiv = document.getElementById('ai-plan-results');
-    const form = document.getElementById('ai-plan-form');
+    const resultsContainer = document.getElementById('ai-plan-results-container');
     const takeoutSlider = document.getElementById('takeout-days');
     const takeoutLabel = document.getElementById('takeout-days-label');
+    const durationSelector = document.getElementById('plan-duration');
+    const monthYearSelector = document.getElementById('month-year-selector');
+    
+    let originalGeneratedPlan = null;
 
-    takeoutSlider.addEventListener('input', function() {
-        takeoutLabel.textContent = this.value;
-    });
+    // --- Helper function to create draggable cards ---
+    function createCard(item, includeRemoveButton = true) {
+        const card = document.createElement('div');
+        let itemTypeClass = 'custom';
+        let mealType = 'Custom';
+        if (item.id) { // It's a recipe
+            const recipeDetails = allRecipesForJs[item.meal_type]?.find(r => r.id === item.id);
+            mealType = recipeDetails?.meal_type || 'Main Course';
+            itemTypeClass = mealType.toLowerCase().replace(' ', '-');
+        }
+        card.className = `recipe-card meal-type-${itemTypeClass}`;
+        if (item.id) {
+            card.dataset.recipeId = item.id;
+            card.dataset.mealType = mealType;
+        } else {
+            card.dataset.itemName = item.name;
+        }
+        card.textContent = item.name;
 
-
-    function displayPlan(plan) {
-        let planHtml = `<div class="d-flex justify-content-between align-items-center mb-3"><h2>Your AI-Generated Plan</h2><button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save This Plan</button></div><div class="d-flex flex-wrap">`;
-        const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        
-        daysOfWeek.forEach((day, index) => {
-            const planForDay = plan[day] || {};
-            const currentDate = new Date(startOfWeekISO + "T00:00:00");
-            currentDate.setDate(currentDate.getDate() + index);
-            const dayStr = currentDate.toISOString().split('T')[0];
-
-            let cardContent = '';
-            let hiddenInputs = '';
-            
-            for (const slot in planForDay) {
-                if (Object.prototype.hasOwnProperty.call(planForDay, slot)) {
-                    const meal = planForDay[slot];
-                    cardContent += `<h6 class="meal-type-header">${slot}</h6>`;
-                    if (meal && meal.name !== "Unplanned") {
-                        if (meal.id) {
-                            cardContent += `<div class="recipe-card meal-type-main-course">${meal.name}</div>`;
-                            hiddenInputs += `<input type="hidden" name="day-${dayStr}-${slot}-recipe[]" value="${meal.id}">`;
-                        } else {
-                            cardContent += `<div class="recipe-card meal-type-custom"><i>${meal.name}</i></div>`;
-                            hiddenInputs += `<input type="hidden" name="day-${dayStr}-${slot}-custom[]" value="${meal.name}">`;
-                        }
-                    } else {
-                         cardContent += `<div class="recipe-card meal-type-custom"><i>Unplanned</i></div>`;
-                    }
-                }
-            }
-
-
-            planHtml += `<div class="day-column"><div class="card day-card h-100"><div class="card-header text-center">${day}</div><div class="card-body day-card-body">${cardContent}</div><div class="hidden-inputs">${hiddenInputs}</div></div></div>`;
-        });
-        planHtml += `</div>`;
-        resultsDiv.innerHTML = planHtml;
-        form.style.display = 'block';
+        if (includeRemoveButton) {
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'remove-recipe-btn no-print';
+            removeBtn.innerHTML = '×';
+            card.appendChild(removeBtn);
+        }
+        return card;
     }
 
-    buildBtn.addEventListener('click', function() {
-        const planForBreakfast = document.getElementById('plan-breakfast').checked;
-        const planForLunch = document.getElementById('plan-lunch').checked;
-        const planForDinner = document.getElementById('plan-dinner').checked;
+    // --- Renders recipes into the left-side tray ---
+    function renderRecipeTray(recipes) {
+        for (const mealType in recipes) {
+            let simpleId = mealType === 'Meal Prep' ? 'prep-tray' : mealType.split(' ')[0].toLowerCase() + '-tray';
+            const targetTray = document.querySelector(`#${simpleId} .recipe-tray`);
+            if (targetTray) {
+                targetTray.innerHTML = '';
+                recipes[mealType].forEach(recipe => {
+                    const card = createCard({id: recipe.id, name: recipe.name, meal_type: recipe.meal_type}, false);
+                    card.classList.add('recipe-tray-item');
+                    targetTray.appendChild(card);
+                });
+            }
+        }
+    }
 
-        if (!planForBreakfast && !planForLunch && !planForDinner) {
-            alert("Please select at least one meal type to plan.");
-            return;
+    // --- Initializes SortableJS on a container ---
+    function initializeSortable(container) {
+        container.querySelectorAll('.sortable-list').forEach(list => {
+            new Sortable(list, {
+                group: { name: 'shared-group', pull: true, put: true },
+                animation: 150,
+                sort: true,
+                onAdd: function (evt) {
+                    if (!evt.item.querySelector('.remove-recipe-btn')) {
+                        const removeBtn = document.createElement('span');
+                        removeBtn.className = 'remove-recipe-btn no-print';
+                        removeBtn.innerHTML = '×';
+                        evt.item.appendChild(removeBtn);
+                    }
+                }
+            });
+        });
+    }
+
+    // --- Renders the generated plan into an interactive calendar ---
+    function displayPlan(response) {
+        originalGeneratedPlan = response;
+        const plan = response.plan;
+        const duration = response.duration;
+        let planHtml = `<div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-3"><h2>Your AI-Generated Plan</h2><button id="save-ai-plan-btn" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save This Plan</button></div>`;
+
+        let planContainerId = `ai-${duration}-plan`;
+        planHtml += `<div id="${planContainerId}">`;
+
+        if (duration === 'week') {
+            planHtml += `<div class="d-flex flex-wrap">`;
+            const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            daysOfWeek.forEach((day) => {
+                planHtml += `<div class="day-column"><div class="card day-card h-100"><div class="card-header text-center">${day}</div><div class="card-body day-card-body">`;
+                ['Breakfast', 'Lunch', 'Dinner'].forEach(slot => {
+                    planHtml += `<h6 class="meal-type-header">${slot}</h6><div class="meal-type-slot sortable-list" data-day="${day}" data-slot="${slot}"></div>`;
+                });
+                planHtml += `</div></div></div>`;
+            });
+            planHtml += `</div>`;
+        } else if (duration === 'month') {
+            const year = response.year;
+            const month = response.month;
+            const firstDay = new Date(year, month - 1, 1);
+            const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            planHtml += `<div class="monthly-calendar-grid">`;
+            ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(day => planHtml += `<div class="calendar-header">${day}</div>`);
+            
+            for(let i = 0; i < startingDayOfWeek; i++) { planHtml += `<div class="calendar-day not-current-month"></div>`; }
+            
+            for(let day = 1; day <= daysInMonth; day++) {
+                planHtml += `<div class="calendar-day"><div class="day-number">${day}</div><div class="meals sortable-list" data-day="${day}"></div></div>`;
+            }
+            planHtml += `</div>`;
+        }
+        
+        planHtml += `</div></div></div>`;
+        resultsContainer.innerHTML = planHtml;
+        
+        // Now, populate the generated structure with draggable cards
+        const planContainer = document.getElementById(planContainerId);
+        for (const day in plan) {
+            if (duration === 'week') {
+                for (const slot in plan[day]) {
+                    const slotEl = planContainer.querySelector(`[data-day="${day}"][data-slot="${slot}"]`);
+                    if (slotEl) {
+                        slotEl.appendChild(createCard(plan[day][slot]));
+                    }
+                }
+            } else { // month
+                 const dayEl = planContainer.querySelector(`[data-day="${day}"]`);
+                 if(dayEl) {
+                    ['Breakfast', 'Lunch', 'Dinner'].forEach(slot => {
+                        if(plan[day][slot]) {
+                            dayEl.appendChild(createCard(plan[day][slot]));
+                        }
+                    });
+                 }
+            }
         }
 
-        form.style.display = 'block';
-        resultsDiv.innerHTML = '<div class="text-center card p-3"><p class="lead">🧠 Contacting AI... Please wait...</p><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>';
+        initializeSortable(planContainer);
+    }
+
+    // --- NEW: Reads the current state of the DOM to build the final plan object ---
+    function getCurrentPlanFromDOM() {
+        const finalPlan = {};
+        if (originalGeneratedPlan.duration === 'week') {
+            document.querySelectorAll('#ai-week-plan .sortable-list').forEach(slot => {
+                const day = slot.dataset.day;
+                const mealSlot = slot.dataset.slot;
+                const card = slot.querySelector('.recipe-card');
+                if (card) {
+                    if (!finalPlan[day]) finalPlan[day] = {};
+                    finalPlan[day][mealSlot] = {
+                        id: card.dataset.recipeId ? parseInt(card.dataset.recipeId) : null,
+                        name: card.textContent.replace('×', '').trim()
+                    };
+                }
+            });
+        } else { // month
+            document.querySelectorAll('#ai-month-plan .sortable-list').forEach(dayContainer => {
+                const day = dayContainer.dataset.day;
+                const cards = dayContainer.querySelectorAll('.recipe-card');
+                if (cards.length > 0) {
+                    finalPlan[day] = { Breakfast: null, Lunch: null, Dinner: null };
+                    // This is a simple assignment; a more robust version could identify meal types
+                    if (cards[0]) finalPlan[day].Breakfast = { id: cards[0].dataset.recipeId ? parseInt(cards[0].dataset.recipeId) : null, name: cards[0].textContent.replace('×', '').trim() };
+                    if (cards[1]) finalPlan[day].Lunch = { id: cards[1].dataset.recipeId ? parseInt(cards[1].dataset.recipeId) : null, name: cards[1].textContent.replace('×', '').trim() };
+                    if (cards[2]) finalPlan[day].Dinner = { id: cards[2].dataset.recipeId ? parseInt(cards[2].dataset.recipeId) : null, name: cards[2].textContent.replace('×', '').trim() };
+                }
+            });
+        }
+        return { ...originalGeneratedPlan, plan: finalPlan };
+    }
+
+
+    // --- Event Listeners ---
+    durationSelector.addEventListener('change', function() {
+        monthYearSelector.style.display = (this.value === 'month') ? 'block' : 'none';
+        takeoutSlider.max = (this.value === 'month') ? 10 : 7;
+        if (takeoutSlider.value > takeoutSlider.max) {
+            takeoutSlider.value = takeoutSlider.max;
+            takeoutLabel.textContent = takeoutSlider.max;
+        }
+    });
+
+    takeoutSlider.addEventListener('input', function() { takeoutLabel.textContent = this.value; });
+
+    buildBtn.addEventListener('click', function() {
+        resultsContainer.innerHTML = '<div class="text-center card p-3"><p class="lead">🧠 Contacting AI Architect... This may take a moment...</p><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>';
         buildBtn.disabled = true;
-        
+        const payload = {
+            duration: durationSelector.value,
+            theme: document.getElementById('plan-theme').value,
+            use_pantry: document.getElementById('use-pantry').checked,
+            focus_favorites: document.getElementById('focus-favorites').checked,
+            takeout_days: takeoutSlider.value,
+            month: document.getElementById('plan-month').value,
+            year: document.getElementById('plan-year').value
+        };
         fetch('/api/build-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                theme: document.getElementById('plan-theme').value,
-                use_pantry: document.getElementById('use-pantry').checked,
-                focus_favorites: document.getElementById('focus-favorites').checked,
-                plan_breakfast: planForBreakfast,
-                plan_lunch: planForLunch,
-                plan_dinner: planForDinner,
-                takeout_days: takeoutSlider.value
-            })
+            body: JSON.stringify(payload)
         })
         .then(res => res.json())
-        .then(result => {
-            if(result.error) {
-                resultsDiv.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${result.error}</div>`;
-            } else {
-                displayPlan(result);
-            }
-        })
+        .then(displayPlan)
         .catch(error => {
-            resultsDiv.innerHTML = `<div class="alert alert-danger">A network error occurred. Please try again.</div>`;
+            resultsContainer.innerHTML = `<div class="alert alert-danger">A network error occurred. Please try again.</div>`;
             console.error('Error:', error);
         })
-        .finally(() => {
-            buildBtn.disabled = false;
-        });
+        .finally(() => { buildBtn.disabled = false; });
     });
+    
+    resultsContainer.addEventListener('click', function(e) {
+        if (e.target.id === 'save-ai-plan-btn') {
+            const saveBtn = e.target;
+            const finalPlanData = getCurrentPlanFromDOM();
+            let confirmMessage = `This will save the generated plan.`;
+            if (finalPlanData.duration === 'month') {
+                const monthName = new Date(finalPlanData.year, finalPlanData.month - 1).toLocaleString('default', { month: 'long' });
+                confirmMessage += `\n\nWARNING: This will REPLACE all existing meals for ${monthName} ${finalPlanData.year}.`;
+            }
+            if (confirm(confirmMessage)) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                fetch('/api/save-ai-plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(finalPlanData)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success) { window.location.href = data.redirect_url; } 
+                    else {
+                        alert('Error saving plan: ' + data.error);
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save This Plan';
+                    }
+                });
+            }
+        }
+        if (e.target.classList.contains('remove-recipe-btn')) {
+            e.target.closest('.recipe-card').remove();
+        }
+    });
+
+    document.getElementById('add-custom-item-btn').addEventListener('click', () => {
+        const input = document.getElementById('custom-item-input');
+        const tray = document.getElementById('custom-item-tray');
+        const itemName = input.value.trim();
+        if (itemName) {
+            tray.appendChild(createCard({ name: itemName }, false));
+            input.value = '';
+        }
+    });
+    
+    // --- Initial setup ---
+    initializeSortable(document);
+    renderRecipeTray(allRecipesForJs);
 });
 </script>
 {% endblock %}
