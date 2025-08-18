@@ -1,16 +1,53 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid">
   <div class="text-center mb-4">
     <h1 class="display-4">Welcome, {{ current_user.email.split('@')[0] }}!</h1>
     <p class="lead">Here's your dashboard for the day.</p>
   </div>
 
-  <!-- Top Row: Main Dashboard Cards -->
-  <div class="row mb-4">
-    <!-- Left Column: Dinner Tonight -->
-    <div class="col-lg-7">
-      <div class="card h-100">
+  <!-- Top Row with 3 Main Columns -->
+  <div class="row">
+    
+    <!-- Left Column: Kitchen Stats -->
+    <div class="col-lg-3 d-flex flex-column">
+      <div class="card mb-4">
+        <a href="{{ url_for('list_ingredients') }}" class="text-dark">
+          <div class="card-header text-center">
+            <h5 class="my-0"><i class="fas fa-chart-bar"></i> Kitchen Stats</h5>
+          </div>
+        </a>
+        <div class="card-body">
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Total Recipes
+                    <span class="badge badge-primary badge-pill">{{ kitchen_stats.total_recipes }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Pantry Items
+                    <span class="badge badge-primary badge-pill">{{ kitchen_stats.pantry_items }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Favorite Recipes
+                    <span class="badge badge-danger badge-pill">{{ kitchen_stats.favorite_recipes }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Recipes You Can Make
+                    <span class="badge badge-success badge-pill">{{ kitchen_stats.recipes_can_make }}</span>
+                </li>
+                 <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Items to Buy
+                    <span class="badge badge-warning badge-pill">{{ kitchen_stats.items_to_buy }}</span>
+                </li>
+            </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Column: Dinner Tonight -->
+    <div class="col-lg-5 d-flex flex-column">
+      <!-- THIS IS THE FIX: Card stretches to fill the column -->
+      <div class="card mb-4 flex-grow-1">
         <div class="card-header text-center">
           <h3 class="my-0"><i class="fas fa-calendar-check"></i> Dinner Tonight</h3>
         </div>
@@ -20,60 +57,91 @@
               <p class="text-muted">On the plan for tonight:</p>
               <h4 class="card-title">{{ todays_meal_plan.recipe.name }}</h4>
               <p class="card-text">{{ todays_meal_plan.recipe.instructions|truncate(150) }}</p>
-              <div class="mt-3">
-                <a href="{{ url_for('view_recipe', recipe_id=todays_meal_plan.recipe.id) }}" class="btn btn-secondary">View Full Recipe</a>
-              </div>
+              <a href="{{ url_for('view_recipe', recipe_id=todays_meal_plan.recipe.id) }}" class="btn btn-secondary mt-2">View Full Recipe</a>
             {% elif todays_meal_plan.custom_item_name %}
-              <p class="text-muted">On the plan for tonight:</p>
               <h4 class="card-title">{{ todays_meal_plan.custom_item_name }}</h4>
               <p class="card-text">A custom item is planned. Enjoy!</p>
-              <div class="mt-3">
-                  <a href="{{ url_for('meal_plan') }}" class="btn btn-primary">Go to Meal Plan</a>
-              </div>
             {% endif %}
           {% else %}
             <h4 class="card-title">Nothing is planned for dinner tonight!</h4>
-            <p class="text-muted">Use the meal planner to schedule your next meal.</p>
-            <div class="mt-3">
-              <a href="{{ url_for('meal_plan') }}" class="btn btn-primary btn-lg">Plan Tonight's Dinner</a>
-            </div>
+            <a href="{{ url_for('meal_plan') }}" class="btn btn-primary btn-lg mt-2">Plan Tonight's Dinner</a>
           {% endif %}
         </div>
       </div>
     </div>
 
-    <!-- ===== UPDATED: Right Column: Quick Actions ===== -->
-    <div class="col-lg-5">
-      <div class="card h-100">
+    <!-- Right Column: Culinary Alchemist -->
+    <div class="col-lg-4 d-flex flex-column">
+       <!-- THIS IS THE FIX: Card stretches to fill the column -->
+       <div class="card mb-4 flex-grow-1">
         <div class="card-header text-center">
-          <h5 class="my-0"><i class="fas fa-rocket"></i> Quick Actions</h5>
+          <h5 class="my-0"><i class="fas fa-magic"></i> Culinary Alchemist</h5>
         </div>
-        <div class="card-body d-flex flex-column justify-content-center">
-          <a href="{{ url_for('meal_plan') }}" class="btn btn-primary btn-lg btn-block mb-3">View Weekly Plan</a>
-          <a href="{{ url_for('monthly_plan') }}" class="btn btn-secondary btn-lg btn-block mb-3">View Monthly Plan</a>
-          <a href="{{ url_for('shopping_list') }}" class="btn btn-success btn-lg btn-block mb-3">View Shopping List</a>
-          <!-- THIS IS THE FIX: The "Start Meal Prep" button below has been removed -->
+        <div class="card-body d-flex flex-column">
+           <p class="text-center text-muted small mt-0">List ingredients you have on hand, and the AI will invent a recipe for you!</p>
+          <div class="form-group flex-grow-1 d-flex flex-column">
+            <textarea id="fridge-ingredients" class="form-control flex-grow-1" placeholder="e.g., chicken breast, 1 onion, half a bell pepper, soy sauce..."></textarea>
+          </div>
+          <div class="text-center">
+            <button id="generate-recipe-btn" class="btn btn-primary">Generate Recipe</button>
+          </div>
+          <div id="fridge-result-box" class="mt-3 p-2" style="background-color: #f8f9fa; border-radius: 8px; display: none; white-space: pre-wrap; font-size: 0.9rem; max-height: 200px; overflow-y: auto;"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Bottom Row: Full-Width AI Assistant -->
+  <!-- Bottom Row for Nutrition Trackers -->
   <div class="row">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header text-center">
-          <h5 class="my-0"><i class="fas fa-magic"></i> Culinary Alchemist</h5>
-        </div>
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <a href="{{ url_for('meal_plan') }}" class="text-dark">
+          <div class="card-header text-center">
+            <h5 class="my-0"><i class="fas fa-chart-pie"></i> This Week's Nutrition</h5>
+          </div>
+        </a>
         <div class="card-body">
-           <p class="text-center text-muted small mt-0">List ingredients you have on hand, and the AI will invent a recipe for you!</p>
-          <div class="form-group">
-            <textarea id="fridge-ingredients" class="form-control" rows="2" placeholder="e.g., chicken breast, 1 onion, half a bell pepper, soy sauce..."></textarea>
+          <p class="text-muted small text-center">Consumed vs. Scheduled</p>
+          {% for nutrient in ['calories', 'protein', 'fat', 'carbs'] %}
+            {% set scheduled_val = weekly_stats.scheduled[nutrient] %}
+            {% set consumed_val = weekly_stats.consumed[nutrient] %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between">
+                <strong>{{ nutrient|capitalize }}</strong>
+                <span>{{ (consumed_val)|default(0)|round|int }} / {{ (scheduled_val)|default(0)|round|int }} {{ 'g' if nutrient != 'calories' else '' }}</span>
+              </div>
+              {% set percentage = (consumed_val|default(0) / (scheduled_val|default(1))) * 100 %}
+              <div class="progress" style="height: 20px;">
+                <div class="progress-bar" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_val|default(0) }}" aria-valuemin="0" aria-valuemax="{{ scheduled_val|default(1) }}"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 mb-4">
+       <div class="card h-100">
+        <a href="{{ url_for('monthly_plan') }}" class="text-dark">
+          <div class="card-header text-center">
+            <h5 class="my-0"><i class="fas fa-calendar-alt"></i> This Month's Nutrition</h5>
           </div>
-          <div class="text-center">
-            <button id="generate-recipe-btn" class="btn btn-primary">Generate Recipe</button>
-          </div>
-          <div id="fridge-result-box" class="mt-3 p-2" style="background-color: #f8f9fa; border-radius: 8px; display: none; white-space: pre-wrap; font-size: 0.9rem;"></div>
+        </a>
+        <div class="card-body">
+          <p class="text-muted small text-center">Consumed vs. Scheduled for {{ g.current_month_name }}</p>
+           {% for nutrient in ['calories', 'protein', 'fat', 'carbs'] %}
+            {% set scheduled_val = monthly_stats.scheduled[nutrient] %}
+            {% set consumed_val = monthly_stats.consumed[nutrient] %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between">
+                <strong>{{ nutrient|capitalize }}</strong>
+                <span>{{ (consumed_val)|default(0)|round|int }} / {{ (scheduled_val)|default(0)|round|int }} {{ 'g' if nutrient != 'calories' else '' }}</span>
+              </div>
+              {% set percentage = (consumed_val|default(0) / (scheduled_val|default(1))) * 100 %}
+              <div class="progress" style="height: 20px;">
+                <div class="progress-bar bg-secondary" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_val|default(0) }}" aria-valuemin="0" aria-valuemax="{{ scheduled_val|default(1) }}"></div>
+              </div>
+            </div>
+          {% endfor %}
         </div>
       </div>
     </div>

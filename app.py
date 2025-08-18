@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_from_directory, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_from_directory, session, g
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import desc, and_
 from datetime import date, timedelta, datetime
@@ -32,6 +32,11 @@ db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+
+@app.before_request
+def before_request():
+    g.current_month_name = date.today().strftime('%B')
 
 
 def convert_quantity_to_float(quantity_str):
@@ -138,6 +143,7 @@ class Household(db.Model):
     saved_meals = db.relationship('SavedMeal', backref='household', lazy=True, cascade="all, delete-orphan")
     historical_plans = db.relationship('HistoricalPlan', backref='household', lazy=True, cascade="all, delete-orphan")
     grocery_stores = db.relationship('GroceryStore', backref='household', lazy=True, cascade="all, delete-orphan")
+    shopping_list_items = db.relationship('ShoppingListItem', backref='household', lazy=True, cascade="all, delete-orphan")
 
 
 class HouseholdInvitation(db.Model):
@@ -159,6 +165,13 @@ class GroceryStore(db.Model):
     household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     search_url = db.Column(db.String(500), nullable=False)
+
+class ShoppingListItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    category = db.Column(db.String(100), nullable=False, default='Other')
+    is_checked = db.Column(db.Boolean, default=False)
 
 class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -201,6 +214,7 @@ class MealPlan(db.Model):
     recipe = db.relationship('Recipe')
     custom_item_name = db.Column(db.String(150), nullable=True)
     meal_slot = db.Column(db.String(50), nullable=False, default='Dinner')
+    is_eaten = db.Column(db.Boolean, default=False, nullable=False)
 
 class PantryItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -361,13 +375,111 @@ def index():
     with app.app_context():
         db.create_all()
     
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    start_of_month = today.replace(day=1)
+    _, days_in_month = calendar.monthrange(today.year, today.month)
+    end_of_month = today.replace(day=days_in_month)
+
+    # --- UPDATED: New Kitchen Stat calculations ---
+    
+    # Calculate "Recipes You Can Make"
+    all_user_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
+    pantry_items_in_stock = PantryItem.query.filter_by(household_id=current_user.household_id).filter(PantryItem.quantity > 0).all()
+    pantry_ingredient_ids = {item.ingredient_id for item in pantry_items_in_stock}
+    recipes_can_make_count = 0
+    for recipe in all_user_recipes:
+        required_ingredient_ids = {ri.ingredient_id for ri in recipe.ingredients}
+        if required_ingredient_ids and required_ingredient_ids.issubset(pantry_ingredient_ids):
+            recipes_can_make_count += 1
+
+    # Calculate "Items to Buy"
+    # This is a simplified version of the shopping list logic
+    planned_meals_for_shopping = MealPlan.query.filter(
+        MealPlan.household_id == current_user.household_id, 
+        MealPlan.recipe_id.isnot(None),
+        MealPlan.meal_date.between(today, end_of_week)
+    ).all()
+    required = {}
+    for meal in planned_meals_for_shopping:
+        for item in meal.recipe.ingredients:
+            if not item.quantity or item.quantity == 0: continue
+            required[item.ingredient.id] = required.get(item.ingredient.id, 0) + item.quantity
+    
+    items_to_buy_count = 0
+    for ing_id, needed_qty in required.items():
+        pantry_item = PantryItem.query.filter_by(household_id=current_user.household_id, ingredient_id=ing_id).first()
+        if not pantry_item or pantry_item.quantity < needed_qty:
+            items_to_buy_count += 1
+    
+    manual_shopping_items = ShoppingListItem.query.filter_by(household_id=current_user.household_id).count()
+    items_to_buy_count += manual_shopping_items
+
+    kitchen_stats = {
+        'total_recipes': Recipe.query.filter_by(household_id=current_user.household_id).count(),
+        'pantry_items': PantryItem.query.filter_by(household_id=current_user.household_id).count(),
+        'favorite_recipes': Recipe.query.filter_by(household_id=current_user.household_id, is_favorite=True).count(),
+        'recipes_can_make': recipes_can_make_count,
+        'items_to_buy': items_to_buy_count
+    }
+
     todays_meal_plan = MealPlan.query.filter_by(
         household_id=current_user.household_id, 
-        meal_date=date.today(),
+        meal_date=today,
         meal_slot='Dinner'
     ).first()
 
-    return render_template('index.html', todays_meal_plan=todays_meal_plan)
+    weekly_planned_meals = MealPlan.query.filter(
+        MealPlan.household_id == current_user.household_id,
+        MealPlan.meal_date.between(start_of_week, end_of_week),
+        MealPlan.recipe_id.isnot(None)
+    ).all()
+    
+    monthly_planned_meals = MealPlan.query.filter(
+        MealPlan.household_id == current_user.household_id,
+        MealPlan.meal_date.between(start_of_month, end_of_month),
+        MealPlan.recipe_id.isnot(None)
+    ).all()
+
+    weekly_stats = {
+        'scheduled': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0},
+        'consumed': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
+    }
+    for meal in weekly_planned_meals:
+        if meal.recipe:
+            weekly_stats['scheduled']['calories'] += meal.recipe.calories or 0
+            weekly_stats['scheduled']['protein'] += meal.recipe.protein or 0
+            weekly_stats['scheduled']['fat'] += meal.recipe.fat or 0
+            weekly_stats['scheduled']['carbs'] += meal.recipe.carbs or 0
+            if meal.is_eaten:
+                weekly_stats['consumed']['calories'] += meal.recipe.calories or 0
+                weekly_stats['consumed']['protein'] += meal.recipe.protein or 0
+                weekly_stats['consumed']['fat'] += meal.recipe.fat or 0
+                weekly_stats['consumed']['carbs'] += meal.recipe.carbs or 0
+
+    monthly_stats = {
+        'scheduled': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0},
+        'consumed': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
+    }
+    for meal in monthly_planned_meals:
+        if meal.recipe:
+            monthly_stats['scheduled']['calories'] += meal.recipe.calories or 0
+            monthly_stats['scheduled']['protein'] += meal.recipe.protein or 0
+            monthly_stats['scheduled']['fat'] += meal.recipe.fat or 0
+            monthly_stats['scheduled']['carbs'] += meal.recipe.carbs or 0
+            if meal.is_eaten:
+                monthly_stats['consumed']['calories'] += meal.recipe.calories or 0
+                monthly_stats['consumed']['protein'] += meal.recipe.protein or 0
+                monthly_stats['consumed']['fat'] += meal.recipe.fat or 0
+                monthly_stats['consumed']['carbs'] += meal.recipe.carbs or 0
+
+    return render_template('index.html', 
+                           todays_meal_plan=todays_meal_plan, 
+                           weekly_stats=weekly_stats,
+                           monthly_stats=monthly_stats,
+                           kitchen_stats=kitchen_stats)
 
 
 @app.route('/recipes')
@@ -394,7 +506,7 @@ def list_recipes():
         recipes = []
         for recipe in all_user_recipes:
             required_ingredient_ids = {ri.ingredient_id for ri in recipe.ingredients}
-            if required_ingredient_ids.issubset(pantry_ingredient_ids):
+            if required_ingredient_ids and required_ingredient_ids.issubset(pantry_ingredient_ids):
                 recipes.append(recipe)
     elif favorites_filter_active:
         recipes = base_query.filter_by(is_favorite=True).all()
@@ -701,7 +813,7 @@ def delete_historical_plan(plan_id):
     db.session.commit()
     return redirect(url_for('manage_plans'))
 
-@app.route('/monthly-plan')
+@app.route('/monthly-plan', methods=['GET', 'POST'])
 @login_required
 def monthly_plan():
     try:
@@ -721,13 +833,13 @@ def monthly_plan():
     first_day_of_calendar = month_days[0][0]
     last_day_of_calendar = month_days[-1][-1]
     
-    all_meals = MealPlan.query.filter(
+    all_meals_in_view = MealPlan.query.filter(
         MealPlan.household_id == current_user.household_id,
         MealPlan.meal_date.between(first_day_of_calendar, last_day_of_calendar)
     ).all()
 
     planned_meals = {}
-    for meal in all_meals:
+    for meal in all_meals_in_view:
         day_str = meal.meal_date.strftime('%Y-%m-%d')
         if day_str not in planned_meals:
             planned_meals[day_str] = []
@@ -743,10 +855,44 @@ def monthly_plan():
         'next': next_month_date
     }
     
+    start_of_month = date(year, month, 1)
+    _, days_in_month = calendar.monthrange(year, month)
+    end_of_month = date(year, month, days_in_month)
+    
+    all_meals_this_month = [m for m in all_meals_in_view if start_of_month <= m.meal_date <= end_of_month and m.recipe]
+    
+    monthly_stats = {
+        'scheduled': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0},
+        'consumed': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
+    }
+    for meal in all_meals_this_month:
+        monthly_stats['scheduled']['calories'] += meal.recipe.calories or 0
+        monthly_stats['scheduled']['protein'] += meal.recipe.protein or 0
+        monthly_stats['scheduled']['fat'] += meal.recipe.fat or 0
+        monthly_stats['scheduled']['carbs'] += meal.recipe.carbs or 0
+        if meal.is_eaten:
+            monthly_stats['consumed']['calories'] += meal.recipe.calories or 0
+            monthly_stats['consumed']['protein'] += meal.recipe.protein or 0
+            monthly_stats['consumed']['fat'] += meal.recipe.fat or 0
+            monthly_stats['consumed']['carbs'] += meal.recipe.carbs or 0
+            
+    weekly_summaries = []
+    for week in month_days:
+        week_stats = {'scheduled': {'calories': 0}, 'consumed': {'calories': 0}}
+        for day in week:
+            for meal in all_meals_in_view:
+                if meal.meal_date == day and meal.recipe:
+                    week_stats['scheduled']['calories'] += meal.recipe.calories or 0
+                    if meal.is_eaten:
+                        week_stats['consumed']['calories'] += meal.recipe.calories or 0
+        weekly_summaries.append(week_stats)
+    
     return render_template('monthly_plan.html',
                            calendar_data=month_days,
                            planned_meals=planned_meals,
-                           nav=nav)
+                           nav=nav,
+                           monthly_stats=monthly_stats,
+                           weekly_summaries=weekly_summaries)
 
 
 
@@ -814,7 +960,7 @@ def profile():
             else:
                 flash('Invalid store name or URL. Make sure the URL contains "{query}".', 'danger')
             return redirect(url_for('profile'))
-
+        
         elif action == 'delete_store':
             store_id = request.form.get('store_id')
             store_to_delete = GroceryStore.query.filter_by(id=store_id, household_id=current_user.household_id).first()
@@ -1314,6 +1460,39 @@ def consume_recipe(recipe_id):
         'skipped': skipped_items
     })
 
+@app.route('/api/mark-meal-eaten', methods=['POST'])
+@login_required
+def mark_meal_eaten():
+    data = request.get_json()
+    meal_date_str = data.get('date')
+    meal_slot = data.get('slot')
+
+    if not meal_date_str or not meal_slot:
+        return jsonify({'success': False, 'error': 'Missing date or slot information.'}), 400
+
+    try:
+        meal_date_obj = datetime.strptime(meal_date_str, '%Y-%m-%d').date()
+        
+        meals_to_update = MealPlan.query.filter_by(
+            household_id=current_user.household_id,
+            meal_date=meal_date_obj,
+            meal_slot=meal_slot
+        ).all()
+
+        if not meals_to_update:
+            return jsonify({'success': True, 'message': 'No meals to mark.'})
+
+        new_status = not meals_to_update[0].is_eaten
+        for meal in meals_to_update:
+            meal.is_eaten = new_status
+        
+        db.session.commit()
+        return jsonify({'success': True, 'is_eaten': new_status})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/consume-meal', methods=['POST'])
 @login_required
 def consume_meal():
@@ -1505,6 +1684,22 @@ def meal_plan():
     }
 
     historical_plans = HistoricalPlan.query.filter_by(household_id=current_user.household_id).order_by(HistoricalPlan.name).all()
+    
+    daily_stats = {day.strftime('%Y-%m-%d'): {'scheduled': {'calories': 0}, 'consumed': {'calories': 0}} for day in days_of_week}
+    weekly_stats = {'scheduled': {'calories': 0}, 'consumed': {'calories': 0}}
+
+    for meal in all_meals:
+        if meal.recipe:
+            day_str = meal.meal_date.strftime('%Y-%m-%d')
+            calories = meal.recipe.calories or 0
+            
+            daily_stats[day_str]['scheduled']['calories'] += calories
+            weekly_stats['scheduled']['calories'] += calories
+
+            if meal.is_eaten:
+                daily_stats[day_str]['consumed']['calories'] += calories
+                weekly_stats['consumed']['calories'] += calories
+
 
     return render_template('meal_plan.html', 
                            days=days_of_week, 
@@ -1514,7 +1709,9 @@ def meal_plan():
                            historical_plans=historical_plans,
                            start_of_week=start_of_week,
                            prev_week_start=prev_week_start,
-                           next_week_start=next_week_start)
+                           next_week_start=next_week_start,
+                           daily_stats=daily_stats,
+                           weekly_stats=weekly_stats)
 
 
 @app.route('/api/load-historical-plan/<int:plan_id>', methods=['GET'])
@@ -1542,6 +1739,29 @@ def load_historical_plan(plan_id):
 @app.route('/shopping-list', methods=['GET', 'POST'])
 @login_required
 def shopping_list():
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add_manual_item':
+            name = request.form.get('name')
+            category = request.form.get('category')
+            if name and category:
+                new_item = ShoppingListItem(
+                    household_id=current_user.household_id,
+                    name=name,
+                    category=category
+                )
+                db.session.add(new_item)
+                db.session.commit()
+                flash(f'"{name}" added to your shopping list.', 'success')
+        elif action == 'delete_manual_item':
+            item_id = request.form.get('item_id')
+            item_to_delete = ShoppingListItem.query.filter_by(id=item_id, household_id=current_user.household_id).first()
+            if item_to_delete:
+                flash(f'"{item_to_delete.name}" was removed from your list.', 'info')
+                db.session.delete(item_to_delete)
+                db.session.commit()
+        return redirect(url_for('shopping_list'))
+
     today = date.today()
     end_date_for_shopping = today + timedelta(days=6)
 
@@ -1550,6 +1770,8 @@ def shopping_list():
         MealPlan.recipe_id.isnot(None),
         MealPlan.meal_date.between(today, end_date_for_shopping)
     ).all()
+
+    manual_items = ShoppingListItem.query.filter_by(household_id=current_user.household_id).all()
     
     required = {}
     for meal in all_planned_meals:
@@ -1607,9 +1829,16 @@ def shopping_list():
         if category not in grouped_list:
             grouped_list[category] = {}
         grouped_list[category][name] = details
+    
+    for item in manual_items:
+        category = item.category
+        if category not in grouped_list:
+            grouped_list[category] = {}
+        grouped_list[category][item.name] = {'quantity': None, 'units': [], 'note': 'Manually added', 'manual_id': item.id}
+
 
     stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
-
+    
     return render_template('shopping_list.html', 
                            grouped_list=grouped_list,
                            ingredients_in_pantry=in_pantry,

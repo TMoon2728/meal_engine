@@ -50,7 +50,6 @@
             </li>
 
             <li class="nav-item"><a class="nav-link" href="{{ url_for('shopping_list') }}">Shopping List</a></li>
-            <!-- UPDATED: This link now points to the new 'profile' route -->
             <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">Profile</a></li>
 
           {% endif %}
@@ -66,7 +65,8 @@
         </ul>
       </div>
     </nav>
-    <div class="container-fluid mt-4">
+    <!-- UPDATED: Changed to container-fluid and added padding for a wider layout -->
+    <div class="container-fluid mt-4 px-md-4">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="no-print">

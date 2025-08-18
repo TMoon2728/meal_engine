@@ -5,10 +5,41 @@
     <h1><i class="fas fa-cart-arrow-down"></i> Smart Shopping List</h1>
     <button onclick="window.print()" class="btn btn-secondary no-print"><i class="fas fa-print"></i> Print List</button>
   </div>
-  <p class="text-muted no-print">Calculated based on your meal plan and current pantry inventory.</p>
+  <p class="text-muted no-print">Calculated from your meal plan, pantry, and manually added items.</p>
 
   <div class="row">
     <div class="col-md-8">
+      <!-- Card for manually adding items -->
+      <div class="card mb-4 no-print">
+        <div class="card-body">
+          <h5 class="card-title">Add Item Manually</h5>
+          <form method="POST" action="{{ url_for('shopping_list') }}" class="form-inline">
+            <input type="hidden" name="action" value="add_manual_item">
+            <div class="form-group col-6">
+                <label for="name" class="sr-only">Item Name</label>
+                <input type="text" class="form-control w-100" name="name" id="name" placeholder="e.g., Paper Towels" required>
+            </div>
+            <div class="form-group col-4">
+              <label for="category" class="sr-only">Category</label>
+              <select name="category" id="category" class="form-control w-100">
+                  <option value="Household">Household</option>
+                  <option value="Personal Care">Personal Care</option>
+                  <option value="Pets">Pets</option>
+                  <option value="Other">Other</option>
+                  <option disabled>-- Food --</option>
+                  <option value="Produce">Produce</option>
+                  <option value="Meat & Seafood">Meat & Seafood</option>
+                  <option value="Dairy & Eggs">Dairy & Eggs</option>
+                  <option value="Pantry">Pantry</option>
+              </select>
+            </div>
+            <div class="col-2">
+              <button type="submit" class="btn btn-primary btn-block">Add</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <div class="card h-100">
         <div class="card-header">
           <h5>What You Need to Buy</h5>
@@ -28,16 +59,21 @@
                   <li class="list-group-item shopping-item d-flex align-items-center">
                     <input type="checkbox" class="mr-3 item-checkbox">
                     <span class="item-text flex-grow-1">
-                      {% if details.quantity %}
-                        Buy <strong>{{ "%.2f"|format(details.quantity) }}</strong> {{ details.units|select|join(', ') }} of <strong>{{ name }}</strong>
-                      {% else %}
+                      {% if details.manual_id %}
                         <strong>{{ name }}</strong>
+                      {% else %}
+                        {% if details.quantity %}
+                          Buy <strong>{{ "%.2f"|format(details.quantity) }}</strong> {{ details.units|select|join(', ') }} of <strong>{{ name }}</strong>
+                        {% else %}
+                          <strong>{{ name }}</strong>
+                        {% endif %}
                       {% endif %}
-                      {% if details.note %}
+                      {% if details.note and not details.manual_id %}
                         <br><small class="text-danger font-italic no-print"><i class="fas fa-exclamation-triangle"></i> {{ details.note }}</small>
                       {% endif %}
                     </span>
-                    <!-- THIS IS THE FIX: Using a conditional loop to get the first 3 stores -->
+
+                    <!-- THIS IS THE CORRECTED LOOP -->
                     <div class="btn-group no-print" role="group">
                       {% for store in stores %}
                         {% if loop.index <= 3 %}
@@ -47,41 +83,20 @@
                         {% endif %}
                       {% endfor %}
                     </div>
+                    
+                    {% if details.manual_id %}
+                      <form method="POST" action="{{ url_for('shopping_list') }}" class="ml-2 no-print">
+                        <input type="hidden" name="action" value="delete_manual_item">
+                        <input type="hidden" name="item_id" value="{{ details.manual_id }}">
+                        <button type="submit" class="btn btn-light btn-sm" title="Delete Item">&times;</button>
+                      </form>
+                    {% endif %}
                   </li>
                 {% endfor %}
               </ul>
             {% endfor %}
-          {% elif ingredients_to_buy %}
-            <!-- Fallback to Ungrouped List -->
-            <ul class="list-group list-group-flush">
-              {% for name, details in ingredients_to_buy.items() %}
-                <li class="list-group-item shopping-item d-flex align-items-center">
-                  <input type="checkbox" class="mr-3 item-checkbox">
-                  <span class="item-text flex-grow-1">
-                     {% if details.quantity %}
-                        Buy <strong>{{ "%.2f"|format(details.quantity) }}</strong> {{ details.units|select|join(', ') }} of <strong>{{ name }}</strong>
-                      {% else %}
-                        <strong>{{ name }}</strong>
-                      {% endif %}
-                      {% if details.note %}
-                        <br><small class="text-danger font-italic no-print"><i class="fas fa-exclamation-triangle"></i> {{ details.note }}</small>
-                      {% endif %}
-                  </span>
-                  <!-- THIS IS THE FIX (APPLIED TO FALLBACK LIST): Using a conditional loop -->
-                  <div class="btn-group no-print" role="group">
-                    {% for store in stores %}
-                      {% if loop.index <= 3 %}
-                        <a href="{{ store.search_url.replace('{query}', name|urlencode) }}" target="_blank" class="btn btn-primary btn-sm" title="Search {{ store.name }}">
-                          <i class="fas fa-search"></i> {{ store.name }}
-                        </a>
-                      {% endif %}
-                    {% endfor %}
-                  </div>
-                </li>
-              {% endfor %}
-            </ul>
           {% else %}
-            <p>Looks like you have everything you need for this week's plan!</p>
+            <p>Your shopping list is empty. Add items from your meal plan or manually above.</p>
           {% endif %}
         </div>
       </div>

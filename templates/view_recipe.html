@@ -14,7 +14,6 @@
         <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <i class="fas fa-magic"></i> AI Remix
         </button>
-        <!-- FIX: Added id="remix-menu" to the dropdown div -->
         <div class="dropdown-menu dropdown-menu-right" id="remix-menu">
             <div class="px-3 py-2">
                 <p class="mb-2 small text-muted">Let the AI modify this recipe for you!</p>
@@ -23,10 +22,15 @@
                         <option value="Make it Healthier">Make it Healthier</option>
                         <option value="Make it Gluten-Free">Make it Gluten-Free</option>
                         <option value="Make it Vegetarian">Make it Vegetarian</option>
+                        <option value="Make it Vegan">Make it Vegan</option>
+                        <option value="Make it Dairy-Free">Make it Dairy-Free</option>
                         <option value="Double the recipe">Double the Recipe</option>
                         <option value="Halve the recipe">Halve the Recipe</option>
                         <option value="Make it for a large crowd">Make it Crowd-Friendly</option>
-                        <option value="Suggest a Wine Pairing">Suggest a Wine Pairing</option>
+                        <option value="Make it for a small family">Make it Family-Friendly</option>
+                        <option value="Make it for a single person">Make a Single Serving</option>
+                        <option value="Make it for Meal Prep">Make it Meal Prep Friendly</option>
+                        <option value="Make it for Kids">Make it Kid-Friendly</option>
                     </select>
                 </div>
                 <button id="remix-recipe-btn" class="btn btn-primary btn-sm btn-block">Remix!</button>
@@ -63,14 +67,15 @@
 
   <p><strong>Servings:</strong> {{ recipe.servings or 'N/A' }} | <strong>Prep Time:</strong> {{ recipe.prep_time or 'N/A' }} | <strong>Cook Time:</strong> {{ recipe.cook_time or 'N/A' }}</p>
   
-  {% if recipe.calories %}
+  {% if recipe.calories is not none %}
   <div class="card bg-light p-3 my-3">
     <h5 class="card-title mb-1">Nutritional Info (per serving)</h5>
     <div class="card-text">
-        <strong>Calories:</strong> {{ recipe.calories|round|int }} | 
-        <strong>Protein:</strong> {{ recipe.protein|round|int }}g | 
-        <strong>Fat:</strong> {{ recipe.fat|round|int }}g | 
-        <strong>Carbs:</strong> {{ recipe.carbs|round|int }}g
+        <!-- THIS IS THE CORRECT FIX -->
+        <strong>Calories:</strong> {{ recipe.calories|default(0)|round|int }} | 
+        <strong>Protein:</strong> {{ recipe.protein|default(0)|round|int }}g | 
+        <strong>Fat:</strong> {{ recipe.fat|default(0)|round|int }}g | 
+        <strong>Carbs:</strong> {{ recipe.carbs|default(0)|round|int }}g
     </div>
   </div>
   {% endif %}
@@ -222,7 +227,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- FIX: This snippet prevents the AI Remix dropdown from closing when clicked inside ---
     const remixMenu = document.getElementById('remix-menu');
     if (remixMenu) {
         remixMenu.addEventListener('click', function(e) {

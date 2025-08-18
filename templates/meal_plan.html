@@ -48,6 +48,38 @@
             <button type="submit" id="save-plan-btn" class="btn btn-primary"><i class="fas fa-check"></i> Apply Changes</button>
         </div>
     </div>
+
+    <!-- Weekly & Daily Nutrition Summary Row -->
+    <div class="row no-print mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Weekly Summary</h5></div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <!-- THIS IS THE CORRECT FIX -->
+                        <strong>Total Scheduled Calories:</strong> {{ weekly_stats.scheduled.calories|default(0)|round|int }}<br>
+                        <strong>Total Consumed Calories:</strong> {{ weekly_stats.consumed.calories|default(0)|round|int }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Daily Scheduled Calories</h5></div>
+                <div class="card-body" style="padding: 0.8rem;">
+                    <div class="row text-center">
+                        {% for day in days %}
+                            <div class="col">
+                                <strong>{{ day.strftime('%a') }}</strong><br>
+                                <!-- THIS IS THE CORRECT FIX -->
+                                <span class="badge badge-secondary">{{ daily_stats[day.strftime('%Y-%m-%d')].scheduled.calories|default(0)|round|int }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <div id="printable-area">
         <h1 class="print-only-title" style="display:none;">Meal Plan - Week of {{ start_of_week.strftime('%B %d, %Y') }}</h1>
@@ -106,11 +138,14 @@
                             <div class="card-header text-center">{{ day.strftime('%A') }} <br> <small>{{ day.strftime('%B %d') }}</small></div>
                             <div class="card-body day-card-body">
                                 {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
+                                {% set slot_eaten = planned_meals[day_str] and planned_meals[day_str][slot] and planned_meals[day_str][slot][0].is_eaten %}
                                 <div class="d-flex justify-content-between align-items-center">
                                     <h6 class="meal-type-header">{{ slot }}</h6>
-                                    {% if slot != 'Snack' %}
-                                    <button type="button" class="btn btn-success btn-sm meal-made-btn no-print" data-date="{{ day_str }}" data-slot="{{ slot }}" title="Mark as made and remove ingredients from pantry"><i class="fas fa-check"></i></button>
-                                    {% endif %}
+                                    <button type="button" class="btn btn-sm meal-eaten-btn no-print {% if slot_eaten %}btn-success{% else %}btn-outline-secondary{% endif %}" 
+                                            data-date="{{ day_str }}" data-slot="{{ slot }}" 
+                                            title="Mark as Eaten for Nutrition Tracking">
+                                        <i class="fas fa-check"></i>
+                                    </button>
                                 </div>
                                 <div class="meal-type-slot sortable-list" id="day-{{ day_str }}-{{ slot|replace(' ', '-') }}">
                                     {% if planned_meals[day_str] and planned_meals[day_str][slot] %}
@@ -201,21 +236,13 @@
             });
         }
 
-        // *** THIS IS THE BUG FIX ***
-        // This function is now "safer" and will only clear the trays it has data for.
-        // It will no longer accidentally wipe out the Saved Meals tray.
         function renderRecipeTray(recipes) {
             for (const mealType in recipes) {
-                let simpleId;
-                if (mealType === 'Meal Prep') {
-                    simpleId = 'prep-tray';
-                } else {
-                    simpleId = mealType.split(' ')[0].toLowerCase() + '-tray';
-                }
+                let simpleId = mealType === 'Meal Prep' ? 'prep-tray' : mealType.split(' ')[0].toLowerCase() + '-tray';
                 const targetTray = document.querySelector(`#${simpleId} .recipe-tray`);
 
                 if (targetTray) {
-                    targetTray.innerHTML = ''; // Clear only this specific tray
+                    targetTray.innerHTML = '';
                     recipes[mealType].forEach(recipe => {
                         const card = createCard({ type: 'recipe', ...recipe }, false);
                         card.classList.add('recipe-tray-item');
@@ -233,23 +260,11 @@
                     animation: 150,
                     sort: true,
                     onAdd: function(evt) {
-                        const item = evt.item;
-                        const to = evt.to;
-                        if (item.dataset.savedMealId) {
-                            const savedMeal = allSavedMeals.find(m => m.id == item.dataset.savedMealId);
-                            if (savedMeal) {
-                                savedMeal.recipes.forEach(recipe => {
-                                    to.appendChild(createCard({ type: 'recipe', ...recipe }, true));
-                                });
-                            }
-                            item.remove();
-                        } else {
-                            if (!item.querySelector('.remove-recipe-btn')) {
-                                const removeBtn = document.createElement('span');
-                                removeBtn.className = 'remove-recipe-btn no-print';
-                                removeBtn.innerHTML = '×';
-                                item.appendChild(removeBtn);
-                            }
+                        if (!evt.item.querySelector('.remove-recipe-btn')) {
+                            const removeBtn = document.createElement('span');
+                            removeBtn.className = 'remove-recipe-btn no-print';
+                            removeBtn.innerHTML = '×';
+                            evt.item.appendChild(removeBtn);
                         }
                         updateAllHiddenInputs();
                         markPlanAsChanged();
@@ -276,7 +291,7 @@
         }
 
         document.getElementById('calendar-column').addEventListener('click', e => {
-            if (e.target && e.target.classList.contains('remove-recipe-btn')) {
+            if (e.target.closest('.remove-recipe-btn')) {
                 e.target.closest('.recipe-card').remove();
                 updateAllHiddenInputs();
                 markPlanAsChanged();
@@ -369,6 +384,43 @@
         document.getElementById('suggest-recipes-btn').addEventListener('click', () => {
             const suggestedRecipes = generateSuggestions(allRecipesForJs);
             renderRecipeTray(suggestedRecipes);
+        });
+
+        document.querySelectorAll('.meal-eaten-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const btn = this;
+                const originalIcon = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                const data = {
+                    date: btn.dataset.date,
+                    slot: btn.dataset.slot
+                };
+
+                fetch('/api/mark-meal-eaten', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        btn.classList.toggle('btn-outline-secondary', !result.is_eaten);
+                        btn.classList.toggle('btn-success', result.is_eaten);
+                    } else {
+                        alert('Error: ' + result.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An unexpected error occurred.');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalIcon;
+                });
+            });
         });
 
         const datePickerInput = document.getElementById('date-picker-input');

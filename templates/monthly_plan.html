@@ -12,6 +12,45 @@
     <button type="button" onclick="window.print()" class="btn btn-primary"><i class="fas fa-print"></i> Print</button>
 </div>
 
+<!-- Monthly & Weekly Nutrition Summary Row -->
+<div class="row no-print mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Monthly Summary</h5></div>
+            <div class="card-body">
+                <p class="card-text">
+                    <!-- THIS IS THE FIX: Using an inline if/else -->
+                    <strong>Total Scheduled Calories:</strong> {{ (monthly_stats.scheduled.calories|round|int) if monthly_stats.scheduled.calories is not none else 0 }}<br>
+                    <strong>Total Consumed Calories:</strong> {{ (monthly_stats.consumed.calories|round|int) if monthly_stats.consumed.calories is not none else 0 }}
+                </p>
+                 <div class="progress" style="height: 10px;">
+                    {% set scheduled_cal = monthly_stats.scheduled.calories or 1 %}
+                    {% set consumed_cal = monthly_stats.consumed.calories or 0 %}
+                    {% set percentage = (consumed_cal / scheduled_cal * 100) %}
+                    <div class="progress-bar" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_cal }}" aria-valuemin="0" aria-valuemax="{{ scheduled_cal }}"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Weekly Scheduled Calories</h5></div>
+            <div class="card-body" style="padding: 0.8rem;">
+                <div class="row text-center">
+                    {% for weekly_summary in weekly_summaries %}
+                    <div class="col">
+                        <strong>Week {{ loop.index }}</strong><br>
+                        <!-- THIS IS THE FIX: Using an inline if/else -->
+                        <span class="badge badge-secondary">{{ (weekly_summary.scheduled.calories|round|int) if weekly_summary.scheduled.calories is not none else 0 }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <div id="printable-area">
     <h1 class="print-only-title" style="display:none;">Meal Plan for {{ nav.current.strftime('%B %Y') }}</h1>
 
@@ -36,7 +75,6 @@
                         <div class="meals">
                             {% if day_str in planned_meals %}
                                 {% for meal in planned_meals[day_str] %}
-                                    <!-- FIX: Wrap the entire item in the link for recipes -->
                                     {% if meal.recipe %}
                                         <a href="{{ url_for('view_recipe', recipe_id=meal.recipe.id) }}" class="meal-link">
                                             <div class="meal-item meal-type-{{ meal.meal_slot|lower }}">
