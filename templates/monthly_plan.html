@@ -14,34 +14,37 @@
 
 <!-- Monthly & Weekly Nutrition Summary Row -->
 <div class="row no-print mb-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header"><h5 class="mb-0">Monthly Summary</h5></div>
-            <div class="card-body">
-                <p class="card-text">
-                    <!-- THIS IS THE FIX: Using an inline if/else -->
-                    <strong>Total Scheduled Calories:</strong> {{ (monthly_stats.scheduled.calories|round|int) if monthly_stats.scheduled.calories is not none else 0 }}<br>
-                    <strong>Total Consumed Calories:</strong> {{ (monthly_stats.consumed.calories|round|int) if monthly_stats.consumed.calories is not none else 0 }}
-                </p>
-                 <div class="progress" style="height: 10px;">
-                    {% set scheduled_cal = monthly_stats.scheduled.calories or 1 %}
-                    {% set consumed_cal = monthly_stats.consumed.calories or 0 %}
-                    {% set percentage = (consumed_cal / scheduled_cal * 100) %}
-                    <div class="progress-bar" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_cal }}" aria-valuemin="0" aria-valuemax="{{ scheduled_cal }}"></div>
+    <div class="col-md-6 mb-4 d-flex">
+        <div class="card w-100">
+            <!-- UPDATED: Added text-center -->
+            <div class="card-header text-center"><h5 class="mb-0">Monthly Summary</h5></div>
+            <div class="card-body text-center">
+                <div class="row">
+                    <div class="col-6 border-right">
+                        <!-- UPDATED: Made titles bold -->
+                        <p class="mb-0 text-muted"><strong>Scheduled Calories</strong></p>
+                        <h4 class="mb-0">{{ (monthly_stats.scheduled.calories|round|int) if monthly_stats.scheduled.calories is not none else 0 }}</h4>
+                    </div>
+                    <div class="col-6">
+                        <!-- UPDATED: Made titles bold -->
+                        <p class="mb-0 text-muted"><strong>Consumed Calories</strong></p>
+                        <h4 class="mb-0">{{ (monthly_stats.consumed.calories|round|int) if monthly_stats.consumed.calories is not none else 0 }}</h4>
+                    </div>
                 </div>
+                 <!-- UPDATED: Removed the progress bar div -->
             </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header"><h5 class="mb-0">Weekly Scheduled Calories</h5></div>
-            <div class="card-body" style="padding: 0.8rem;">
-                <div class="row text-center">
+    <div class="col-md-6 mb-4 d-flex">
+        <div class="card w-100">
+            <!-- UPDATED: Added text-center -->
+            <div class="card-header text-center"><h5 class="mb-0">Weekly Scheduled Calories</h5></div>
+            <div class="card-body d-flex align-items-center">
+                <div class="row text-center w-100">
                     {% for weekly_summary in weekly_summaries %}
                     <div class="col">
                         <strong>Week {{ loop.index }}</strong><br>
-                        <!-- THIS IS THE FIX: Using an inline if/else -->
-                        <span class="badge badge-secondary">{{ (weekly_summary.scheduled.calories|round|int) if weekly_summary.scheduled.calories is not none else 0 }}</span>
+                        <h4 class="mb-0 font-weight-normal">{{ (weekly_summary.scheduled.calories|round|int) if weekly_summary.scheduled.calories is not none else 0 }}</h4>
                     </div>
                     {% endfor %}
                 </div>

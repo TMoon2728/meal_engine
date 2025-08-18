@@ -48,38 +48,6 @@
             <button type="submit" id="save-plan-btn" class="btn btn-primary"><i class="fas fa-check"></i> Apply Changes</button>
         </div>
     </div>
-
-    <!-- Weekly & Daily Nutrition Summary Row -->
-    <div class="row no-print mb-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header"><h5 class="mb-0">Weekly Summary</h5></div>
-                <div class="card-body">
-                    <p class="card-text">
-                        <!-- THIS IS THE CORRECT FIX -->
-                        <strong>Total Scheduled Calories:</strong> {{ weekly_stats.scheduled.calories|default(0)|round|int }}<br>
-                        <strong>Total Consumed Calories:</strong> {{ weekly_stats.consumed.calories|default(0)|round|int }}
-                    </p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header"><h5 class="mb-0">Daily Scheduled Calories</h5></div>
-                <div class="card-body" style="padding: 0.8rem;">
-                    <div class="row text-center">
-                        {% for day in days %}
-                            <div class="col">
-                                <strong>{{ day.strftime('%a') }}</strong><br>
-                                <!-- THIS IS THE CORRECT FIX -->
-                                <span class="badge badge-secondary">{{ daily_stats[day.strftime('%Y-%m-%d')].scheduled.calories|default(0)|round|int }}</span>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
     
     <div id="printable-area">
         <h1 class="print-only-title" style="display:none;">Meal Plan - Week of {{ start_of_week.strftime('%B %d, %Y') }}</h1>
@@ -114,22 +82,53 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="card mb-2 no-print">
-                        <div class="card-header"><h5 class="mb-0"><i class="fas fa-plus-circle"></i> Custom Items</h5></div>
-                        <div class="card-body">
-                            <p class="small text-muted mb-2">Add takeout, leftovers, etc.</p>
-                            <div class="input-group mb-2">
-                                <input type="text" id="custom-item-input" class="form-control" placeholder="e.g., Pizza">
-                                <div class="input-group-append"><button class="btn btn-outline-secondary" type="button" id="add-custom-item-btn">+</button></div>
-                            </div>
-                            <div id="custom-item-tray" class="sortable-list recipe-tray" style="min-height: 38px;"></div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
             <div class="col-md-10"> 
+                <!-- UPDATED: This row now contains three cards for summary and custom items -->
+                <div class="row no-print mb-4">
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header"><h5 class="mb-0">Weekly Summary</h5></div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    <strong>Total Scheduled Calories:</strong> {{ (weekly_stats.scheduled.calories|round|int) if weekly_stats.scheduled.calories is not none else 0 }}<br>
+                                    <strong>Total Consumed Calories:</strong> {{ (weekly_stats.consumed.calories|round|int) if weekly_stats.consumed.calories is not none else 0 }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header"><h5 class="mb-0">Daily Calories</h5></div>
+                            <div class="card-body" style="padding: 0.8rem;">
+                                <div class="row text-center">
+                                    {% for day in days %}
+                                        <div class="col">
+                                            <strong>{{ day.strftime('%a') }}</strong><br>
+                                            <span class="badge badge-secondary">{{ (daily_stats[day.strftime('%Y-%m-%d')].scheduled.calories|round|int) if daily_stats[day.strftime('%Y-%m-%d')].scheduled.calories is not none else 0 }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header"><h5 class="mb-0"><i class="fas fa-plus-circle"></i> Custom Items</h5></div>
+                            <div class="card-body">
+                                <p class="small text-muted mb-2">Add takeout, leftovers, etc.</p>
+                                <div class="input-group mb-2">
+                                    <input type="text" id="custom-item-input" class="form-control" placeholder="e.g., Pizza">
+                                    <div class="input-group-append"><button class="btn btn-outline-secondary" type="button" id="add-custom-item-btn">+</button></div>
+                                </div>
+                                <div id="custom-item-tray" class="sortable-list recipe-tray" style="min-height: 38px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="d-flex flex-wrap" id="calendar-column">
                     {% for day in days %}
                     {% set day_str = day.strftime('%Y-%m-%d') %}
