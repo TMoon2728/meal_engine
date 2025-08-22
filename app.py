@@ -257,7 +257,6 @@ class HistoricalPlanEntry(db.Model):
     recipe = db.relationship('Recipe')
 
 
-# UPDATED to return the error message on failure
 def send_reset_email(user_email, token):
     msg = EmailMessage()
     msg['Subject'] = 'Password Reset Request for Meal Engine'
@@ -274,10 +273,10 @@ def send_reset_email(user_email, token):
                 server.starttls()
             server.login(os.getenv('MAIL_USERNAME'), os.getenv('MAIL_PASSWORD'))
             server.send_message(msg)
-        return None  # Return None on success
+        return True
     except Exception as e:
         print(f"Failed to send email: {e}")
-        return str(e)  # Return the error string on failure
+        return False
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -325,7 +324,6 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
-# UPDATED to flash the specific error message to the screen
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if current_user.is_authenticated:
@@ -335,15 +333,11 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         if user:
             token = s.dumps(email, salt='password-reset-salt')
-            error_message = send_reset_email(email, token)
-            
-            if error_message is None:
+            if send_reset_email(email, token):
                 flash('A password reset link has been sent to your email.', 'info')
             else:
-                # Flash the specific error message from the email function
-                flash(f"Error sending email: {error_message}", 'danger')
+                flash('There was an error sending the email. Please try again later.', 'danger')
         else:
-            # Still show the same message for non-existent users for security
             flash('A password reset link has been sent to your email.', 'info')
         return redirect(url_for('login'))
     return render_template('forgot_password.html')
@@ -1365,7 +1359,7 @@ def save_new_recipe():
                     db.session.add(ingredient_obj)
                     db.session.flush()
                 
-                quantity_val = convert_quantity_to_float(ing_data.get('quantity', 0))
+                quantity_val = convert_quantity_to_float(ing_data.get('quantity', '0'))
                 
                 recipe_ingredient = RecipeIngredient(
                     recipe_id=new_recipe.id, 
