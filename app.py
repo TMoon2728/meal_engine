@@ -26,14 +26,6 @@ app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 
 app.config['SECRET_KEY'] = 'your_secret_key'
 
-
-# --- TEMPORARY DEBUGGING STEP ---
-# This will print the exact value of your DATABASE_URL from Render into your logs.
-database_url_from_env = os.getenv("DATABASE_URL")
-print(f"--- DEBUG: DATABASE_URL from Render environment is: '{database_url_from_env}' ---")
-# --- END TEMPORARY DEBUGGING STEP ---
-
-
 # FIX FOR RENDER/HEROKU POSTGRESQL DATABASE URL
 database_url = os.getenv("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
@@ -1885,4 +1877,4 @@ def export_recipe_ingredients():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True)
