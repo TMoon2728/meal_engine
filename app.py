@@ -25,7 +25,13 @@ app = Flask(__name__)
 app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 
 app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", 'sqlite:///meal_engine.db')
+
+# FIX FOR RENDER/HEROKU POSTGRESQL DATABASE URL
+database_url = os.getenv("DATABASE_URL")
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///meal_engine.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
@@ -372,9 +378,6 @@ def index():
     if not current_user.is_authenticated:
         return render_template('landing_page.html')
     
-    with app.app_context():
-        db.create_all()
-    
     today = date.today()
     start_of_week = today - timedelta(days=today.weekday())
     end_of_week = start_of_week + timedelta(days=6)
@@ -383,9 +386,6 @@ def index():
     _, days_in_month = calendar.monthrange(today.year, today.month)
     end_of_month = today.replace(day=days_in_month)
 
-    # --- UPDATED: New Kitchen Stat calculations ---
-    
-    # Calculate "Recipes You Can Make"
     all_user_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     pantry_items_in_stock = PantryItem.query.filter_by(household_id=current_user.household_id).filter(PantryItem.quantity > 0).all()
     pantry_ingredient_ids = {item.ingredient_id for item in pantry_items_in_stock}
@@ -395,8 +395,6 @@ def index():
         if required_ingredient_ids and required_ingredient_ids.issubset(pantry_ingredient_ids):
             recipes_can_make_count += 1
 
-    # Calculate "Items to Buy"
-    # This is a simplified version of the shopping list logic
     planned_meals_for_shopping = MealPlan.query.filter(
         MealPlan.household_id == current_user.household_id, 
         MealPlan.recipe_id.isnot(None),
@@ -1711,7 +1709,8 @@ def meal_plan():
                            prev_week_start=prev_week_start,
                            next_week_start=next_week_start,
                            daily_stats=daily_stats,
-                           weekly_stats=weekly_stats)
+                           weekly_stats=weekly_stats,
+                           today=today)
 
 
 @app.route('/api/load-historical-plan/<int:plan_id>', methods=['GET'])
