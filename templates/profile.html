@@ -1,14 +1,12 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="row">
-    <!-- Left Column: Household Management -->
-    <div class="col-md-6 mb-4">
+    <div class="col-12 col-md-6 mb-4">
         <div class="card h-100">
             <div class="card-body">
                 <h1 class="card-title"><i class="fas fa-users"></i> Household Settings</h1>
                 <hr>
                 
-                <!-- Update Household Name -->
                 <form method="POST" action="{{ url_for('profile') }}">
                     <input type="hidden" name="action" value="update_household_name">
                     <div class="form-group">
@@ -20,7 +18,6 @@
 
                 <hr>
 
-                <!-- Household Members -->
                 <h5 class="mt-4">Members</h5>
                 <ul class="list-group">
                     {% for member in current_user.household.members %}
@@ -30,7 +27,6 @@
 
                 <hr>
 
-                <!-- Invite Others -->
                 <h5 class="mt-4">Invite Others</h5>
                 <p>Generate a unique link to invite someone to join your household. The link is valid for 24 hours.</p>
                 <button id="generate-invite-btn" class="btn btn-primary"><i class="fas fa-link"></i> Generate Invite Link</button>
@@ -48,15 +44,13 @@
         </div>
     </div>
 
-    <!-- Right Column: Grocery Store Management -->
-    <div class="col-md-6 mb-4">
+    <div class="col-12 col-md-6 mb-4">
         <div class="card h-100">
             <div class="card-body">
                 <h1 class="card-title"><i class="fas fa-store"></i> My Grocery Stores</h1>
                 <hr>
                 <p>Add search links for your favorite online grocery stores. The top 3 will appear on your shopping list.</p>
 
-                <!-- UPDATED: Add New Store Form is now flexible -->
                 <div class="card bg-light p-3 mb-4">
                     <h5 class="card-title">Add a New Store</h5>
                     <form method="POST" action="{{ url_for('profile') }}">
@@ -79,7 +73,6 @@
                     </form>
                 </div>
 
-                <!-- Existing Stores List -->
                 <h5>Your Saved Stores</h5>
                 {% if stores %}
                 <ul class="list-group">
