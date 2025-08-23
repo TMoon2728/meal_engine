@@ -7,16 +7,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly_plan.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}?v={{ cache_buster }}" media="print">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly_plan.css') }}?v={{ cache_buster }}">
     
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <meta name="theme-color" content="#3a7bd5"/>
     
     <title>Meal Engine</title>
   </head>
-  <body>
+  <body class="{{ page_class or '' }}">
     <nav class="navbar navbar-expand-lg navbar-dark no-print">
       <a class="navbar-brand" href="{{ url_for('index') }}">Meal Engine</a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
