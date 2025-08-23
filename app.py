@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import desc, and_
 from datetime import date, timedelta, datetime
-import os, csv, random, json, io, re, uuid, calendar
+import os, csv, random, json, io, re, uuid, calendar, time
 from werkzeug.utils import secure_filename
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -38,6 +38,10 @@ db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+@app.context_processor
+def inject_cache_buster():
+    return dict(cache_buster=int(time.time()))
 
 
 @app.before_request
@@ -514,7 +518,7 @@ def list_recipes():
     else:
         recipes = base_query.all()
         
-    return render_template('recipes.html', recipes=recipes, query=query, pantry_filter_active=pantry_filter_active, favorites_filter_active=favorites_filter_active, sort_order=sort_order)
+    return render_template('recipes.html', page_class='page-recipes', recipes=recipes, query=query, pantry_filter_active=pantry_filter_active, favorites_filter_active=favorites_filter_active, sort_order=sort_order)
 
 
 @app.route('/ai-quick-add', methods=['POST'])
@@ -885,7 +889,7 @@ def monthly_plan():
                         week_stats['consumed']['calories'] += meal.recipe.calories or 0
         weekly_summaries.append(week_stats)
     
-    return render_template('monthly_plan.html',
+    return render_template('monthly_plan.html', page_class='page-monthly-plan',
                            calendar_data=month_days,
                            planned_meals=planned_meals,
                            nav=nav,
@@ -1496,7 +1500,7 @@ def mark_meal_eaten():
 def consume_meal():
     data = request.get_json()
     meal_date_str = data.get('meal_date')
-    meal_slot = data.get('meal_slot')
+    meal_slot = data.get('slot')
 
     if not meal_date_str or not meal_slot:
         return jsonify({'status': 'error', 'message': 'Missing meal_date or meal_slot.'}), 400
@@ -1700,6 +1704,7 @@ def meal_plan():
 
 
     return render_template('meal_plan.html', 
+                           page_class='page-meal-plan',
                            days=days_of_week, 
                            planned_meals=planned_meals, 
                            recipes_by_type=recipes_by_type,
@@ -1838,7 +1843,7 @@ def shopping_list():
 
     stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
     
-    return render_template('shopping_list.html', 
+    return render_template('shopping_list.html', page_class='page-shopping-list',
                            grouped_list=grouped_list,
                            ingredients_in_pantry=in_pantry,
                            stores=stores)

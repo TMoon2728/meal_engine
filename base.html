@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}?v={{ cache_buster }}" media="print">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly_plan.css') }}?v={{ cache_buster }}">
+    
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#3a7bd5"/>
+    
+    <title>Meal Engine</title>
+  </head>
+  <body class="{{ page_class or '' }}">
+    <nav class="navbar navbar-expand-lg navbar-dark no-print">
+      <a class="navbar-brand" href="{{ url_for('index') }}">Meal Engine</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        
+        <ul class="navbar-nav mr-auto">
+          {% if current_user.is_authenticated %}
+            
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="plannerDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Planner
+              </a>
+              <div class="dropdown-menu" aria-labelledby="plannerDropdown">
+                  <a class="dropdown-item" href="{{ url_for('meal_plan') }}">Weekly Plan</a>
+                  <a class="dropdown-item" href="{{ url_for('monthly_plan') }}">Monthly Plan</a>
+                <a class="dropdown-item" href="{{ url_for('ai_architect') }}">AI Architect</a>
+              </div>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="kitchenDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                My Kitchen
+              </a>
+              <div class="dropdown-menu" aria-labelledby="kitchenDropdown">
+                <a class="dropdown-item" href="{{ url_for('list_recipes') }}">Recipes</a>
+                <a class="dropdown-item" href="{{ url_for('saved_meals') }}">Saved Meals</a>
+                <a class="dropdown-item" href="{{ url_for('list_ingredients') }}">Pantry</a>
+              </div>
+            </li>
+
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('shopping_list') }}">Shopping List</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">Profile</a></li>
+
+          {% endif %}
+        </ul>
+        
+        <ul class="navbar-nav">
+            {% if current_user.is_authenticated %}
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+            {% else %}
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
+                <li class="nav-item"><a class="nav-link btn btn-primary ml-2" href="{{ url_for('signup') }}">Sign Up</a></li>
+            {% endif %}
+        </ul>
+      </div>
+    </nav>
+    <div class="container-fluid mt-4 px-md-4">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="no-print">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert"><span aria-hidden="true">×</span></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      
+      {% block content %}{% endblock %}
+
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register("{{ url_for('static', filename='js/service-worker.js') }}", { scope: '/' })
+            .then(registration => {
+              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            }, err => {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>
