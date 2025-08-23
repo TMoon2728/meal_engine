@@ -186,7 +186,6 @@ body.cooking-mode-active .navbar { display: none !important; }
     border-color: #dee2e6 #dee2e6 var(--card-bg) !important;
 }
 
-
 /* =================================================================== */
 /* ===== NEW SECTION: MOBILE-SPECIFIC FIXES (Phones & Portrait) ===== */
 /* =================================================================== */
@@ -203,14 +202,19 @@ body.cooking-mode-active .navbar { display: none !important; }
         padding-right: 15px;
     }
 
-    .form-inline .btn {
-        width: 100%;
-        margin-top: 10px;
+    /* --- General Form Fixes for Mobile --- */
+    .form-inline {
+        flex-direction: column;
+        align-items: stretch;
     }
     .form-inline .form-group {
         width: 100%;
         margin-right: 0 !important;
         margin-bottom: 10px;
+    }
+    .form-inline .btn {
+        width: 100%;
+        margin-top: 10px;
     }
 
     .recipe-actions {
@@ -224,104 +228,92 @@ body.cooking-mode-active .navbar { display: none !important; }
         font-size: 0.85rem;
     }
 
-    /* --- Meal Plan Page Fixes --- */
-    /* Hide the desktop sidebar and make the main content area full-width */
-    .meal_plan_page .col-md-2.no-print {
-        display: none;
+    /* --- Meal Plan Page (page-meal-plan) Fixes --- */
+    body.page-meal-plan .col-md-2.no-print {
+        display: none !important;
     }
-    .meal_plan_page .col-md-10 {
+    body.page-meal-plan .col-md-10 {
         flex: 0 0 100%;
         max-width: 100%;
     }
-    /* Stack the header controls cleanly */
-    .meal_plan_page .d-flex.justify-content-between.align-items-center {
+    body.page-meal-plan .d-flex.justify-content-between.align-items-center.flex-wrap {
         flex-direction: column;
         align-items: stretch !important;
     }
-    .meal_plan_page .d-flex.justify-content-between.align-items-center .mr-auto {
+    body.page-meal-plan .mr-auto {
         margin-right: 0 !important;
         text-align: center;
         margin-bottom: 1rem;
     }
-    .meal_plan_page .d-flex.justify-content-between.align-items-center .d-flex.align-items-center {
+    body.page-meal-plan .d-flex.align-items-center {
         flex-direction: column;
         width: 100%;
     }
-    .meal_plan_page .d-flex.justify-content-between.align-items-center .btn-group,
-    .meal_plan_page .d-flex.justify-content-between.align-items-center .btn {
+    body.page-meal-plan .btn-group,
+    body.page-meal-plan .btn {
         width: 100%;
         margin-bottom: 0.5rem;
+        margin-right: 0 !important;
     }
     
-    /* --- Monthly Plan Page Fixes --- */
-    /* Stack header controls */
-    .monthly-plan-header {
+    /* --- Monthly Plan Page (page-monthly-plan) Fixes --- */
+    body.page-monthly-plan .monthly-plan-header {
         flex-wrap: wrap;
         justify-content: center;
         gap: 10px;
     }
-    .monthly-plan-header h1 {
-        order: -1; /* Make title appear first */
+    body.page-monthly-plan .monthly-plan-header h1 {
+        order: -1;
         width: 100%;
         font-size: 1.8rem;
     }
-    /* Make the calendar grid more compact */
-    .monthly-calendar-grid {
-        min-height: auto; /* Allow it to shrink */
+    body.page-monthly-plan .monthly-calendar-grid {
+        min-height: auto;
     }
-    .calendar-header {
+    body.page-monthly-plan .calendar-header {
         font-size: 0.75rem;
         padding: 0.4rem 0.2rem;
     }
-    .calendar-day {
+    body.page-monthly-plan .calendar-day {
         min-height: 80px;
         padding: 0.2rem;
         font-size: 0.7rem;
     }
-    .meal-item {
+    body.page-monthly-plan .meal-item {
         font-size: 0.65rem;
         padding: 2px 2px 2px 12px;
     }
-    .meal-item::before {
+    body.page-monthly-plan .meal-item::before {
         left: 3px;
         width: 6px;
         height: 6px;
     }
 
-    /* --- Shopping List Page Fixes --- */
-    /* Stack the manual add form */
-    .shopping_list_page .form-inline {
+    /* --- Shopping List Page (page-shopping-list) Fixes --- */
+    body.page-shopping-list .form-inline {
         flex-direction: column;
         align-items: stretch;
     }
-    .shopping_list_page .form-inline .form-group {
-        width: 100%;
-    }
-    .shopping_list_page .form-inline .btn {
-        width: 100%;
-        margin-top: 10px;
-    }
 
-    /* --- Recipes Page Fixes --- */
-    /* Stack the filter/sort control bar */
-    .recipes_page .card.p-3 .d-flex.justify-content-between {
+    /* --- Recipes Page (page-recipes) Fixes --- */
+    body.page-recipes .card.p-3 .d-flex.justify-content-between {
         flex-direction: column;
     }
-    .recipes_page .card.p-3 .flex-grow-1 {
+    body.page-recipes .card.p-3 .flex-grow-1 {
         max-width: 100% !important;
         width: 100%;
     }
-    .recipes_page .card.p-3 .d-flex.justify-content-end {
+    body.page-recipes .card.p-3 .d-flex.justify-content-end {
         flex-direction: column;
         width: 100%;
         margin-top: 1rem;
     }
-    .recipes_page .card.p-3 .btn-group {
+    body.page-recipes .card.p-3 .btn-group {
         width: 100%;
         margin-right: 0 !important;
         margin-bottom: 0.5rem;
     }
-    .recipes_page .card.p-3 .btn-group .btn {
-        flex-grow: 1; /* Make buttons in a group share space equally */
+    body.page-recipes .card.p-3 .btn-group .btn {
+        flex-grow: 1;
     }
 }
