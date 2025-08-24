@@ -62,54 +62,56 @@
   <body class="{{ page_class or '' }}">
     
     <nav class="navbar navbar-expand-lg navbar-dark no-print">
-      <a class="navbar-brand" href="{{ url_for('index') }}">Meal Engine</a>
-      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
-        
-        <ul class="navbar-nav mr-auto">
-          {% if current_user.is_authenticated %}
-            
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="plannerDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Planner
-              </a>
-              <div class="dropdown-menu" aria-labelledby="plannerDropdown">
-                  <a class="dropdown-item" href="{{ url_for('meal_plan') }}">Weekly Plan</a>
-                  <a class="dropdown-item" href="{{ url_for('monthly_plan') }}">Monthly Plan</a>
-                <a class="dropdown-item" href="{{ url_for('ai_architect') }}">AI Architect</a>
-              </div>
-            </li>
-
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="kitchenDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                My Kitchen
-              </a>
-              <div class="dropdown-menu" aria-labelledby="kitchenDropdown">
-                <a class="dropdown-item" href="{{ url_for('list_recipes') }}">Recipes</a>
-                <a class="dropdown-item" href="{{ url_for('saved_meals') }}">Saved Meals</a>
-                <a class="dropdown-item" href="{{ url_for('list_ingredients') }}">Pantry</a>
-              </div>
-            </li>
-
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('shopping_list') }}">Shopping List</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">Profile</a></li>
-
-          {% endif %}
-        </ul>
-        
-        <ul class="navbar-nav">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('index') }}">Meal Engine</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav mr-auto">
             {% if current_user.is_authenticated %}
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
-            {% else %}
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
-                <li class="nav-item"><a class="nav-link btn btn-primary ml-2" href="{{ url_for('signup') }}">Sign Up</a></li>
+              
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="plannerDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Planner
+                </a>
+                <div class="dropdown-menu" aria-labelledby="plannerDropdown">
+                    <a class="dropdown-item" href="{{ url_for('meal_plan') }}">Weekly Plan</a>
+                    <a class="dropdown-item" href="{{ url_for('monthly_plan') }}">Monthly Plan</a>
+                  <a class="dropdown-item" href="{{ url_for('ai_architect') }}">AI Architect</a>
+                </div>
+              </li>
+
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="kitchenDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  My Kitchen
+                </a>
+                <div class="dropdown-menu" aria-labelledby="kitchenDropdown">
+                  <a class="dropdown-item" href="{{ url_for('list_recipes') }}">Recipes</a>
+                  <a class="dropdown-item" href="{{ url_for('saved_meals') }}">Saved Meals</a>
+                  <a class="dropdown-item" href="{{ url_for('list_ingredients') }}">Pantry</a>
+                </div>
+              </li>
+
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('shopping_list') }}">Shopping List</a></li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">Profile</a></li>
+
             {% endif %}
-        </ul>
+          </ul>
+          
+          <ul class="navbar-nav">
+              {% if current_user.is_authenticated %}
+                  <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+              {% else %}
+                  <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
+                  <li class="nav-item"><a class="nav-link btn btn-primary ml-2" href="{{ url_for('signup') }}">Sign Up</a></li>
+              {% endif %}
+          </ul>
+        </div>
       </div>
     </nav>
-    <div class="container-fluid mt-4 px-md-4">
+    
+    <div class="container-fluid main-content-container">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="no-print">
