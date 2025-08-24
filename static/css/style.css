@@ -275,6 +275,13 @@ body.cooking-mode-active .navbar { display: none !important; }
         font-size: 0.75rem;
         padding: 0.4rem 0.2rem;
     }
+    /* Hide the detailed meal list and show the calorie count on mobile */
+    body.page-monthly-plan .calendar-day .meals {
+        display: none;
+    }
+    body.page-monthly-plan .calendar-day .day-calories {
+        display: block;
+    }
     body.page-monthly-plan .calendar-day {
         min-height: 80px;
         padding: 0.2rem;
