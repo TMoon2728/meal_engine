@@ -31,6 +31,7 @@
           .recipe-actions { width: 100%; justify-content: space-between; margin-top: 1rem; }
           .recipe-card { padding: 6px 20px 6px 10px; font-size: 0.85rem; }
 
+          /* --- Meal Plan Page (page-meal-plan) --- */
           body.page-meal-plan .col-md-2.no-print { display: none !important; }
           body.page-meal-plan .col-md-10 { flex: 0 0 100%; max-width: 100%; }
           body.page-meal-plan .d-flex.justify-content-between.align-items-center.flex-wrap { flex-direction: column; align-items: stretch !important; }
@@ -39,17 +40,39 @@
           body.page-meal-plan .btn-group,
           body.page-meal-plan .btn { width: 100%; margin-bottom: 0.5rem; margin-right: 0 !important; }
           
+          /* --- Monthly Plan Page (page-monthly-plan) --- */
           body.page-monthly-plan .monthly-plan-header { flex-wrap: wrap; justify-content: center; gap: 10px; }
-          body.page-monthly-plan .monthly-plan-header h1 { order: -1; width: 100%; font-size: 1.8rem; }
+          body.page-monthly-plan .monthly-plan-header h1 { order: -1; width: 100%; font-size: 1.8rem; text-align: center; }
           body.page-monthly-plan .monthly-calendar-grid { min-height: auto; }
           body.page-monthly-plan .calendar-header { font-size: 0.75rem; padding: 0.4rem 0.2rem; }
           body.page-monthly-plan .calendar-day { min-height: 80px; padding: 0.2rem; font-size: 0.7rem; align-items: center; justify-content: center; text-align: center; position: relative; }
           body.page-monthly-plan .calendar-day .day-number { position: absolute; top: 2px; left: 4px; font-size: 0.6rem; font-weight: normal; color: #6c757d; }
           body.page-monthly-plan .calendar-day.has-meals { cursor: pointer; background-color: #e9f2ff; font-weight: 600; color: var(--primary-blue); }
           body.page-monthly-plan .day-calories { font-size: 0.8rem; }
+          
+          /* --- AI Architect Page --- */
+          /* Fixes for the generated plan results */
+          #ai-week-plan .day-column { width: 100%; flex-basis: 100%; }
+          #ai-month-plan .monthly-calendar-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+          #ai-month-plan .calendar-day { min-height: 80px; }
 
-          body.page-shopping-list .form-inline { flex-direction: column; align-items: stretch; }
 
+          /* --- Shopping List Page (page-shopping-list) --- */
+          /* Overrides the general form-inline stacking for a better row layout on this specific page */
+          body.page-shopping-list .form-inline {
+              flex-direction: row;
+              flex-wrap: nowrap;
+              align-items: flex-end;
+          }
+           body.page-shopping-list .form-inline .form-group {
+              margin-bottom: 0;
+           }
+           body.page-shopping-list .form-inline .btn {
+              width: auto;
+              margin-top: 0;
+           }
+
+          /* --- Recipes Page (page-recipes) --- */
           body.page-recipes .card.p-3 .d-flex.justify-content-between { flex-direction: column; }
           body.page-recipes .card.p-3 .flex-grow-1 { max-width: 100% !important; width: 100%; }
           body.page-recipes .card.p-3 .d-flex.justify-content-end { flex-direction: column; width: 100%; margin-top: 1rem; }
