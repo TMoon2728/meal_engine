@@ -53,7 +53,7 @@
         <h1 class="print-only-title" style="display:none;">Meal Plan - Week of {{ start_of_week.strftime('%B %d, %Y') }}</h1>
         
         <div class="row">
-            <div class="col-md-2 no-print">
+            <div class="col-md-2 no-print d-none d-md-block">
                 <div class="sticky-top" style="top: 1rem;">
                     <div class="card mb-3">
                         <div class="card-header">
@@ -85,7 +85,7 @@
                 </div>
             </div>
 
-            <div class="col-md-10"> 
+            <div class="col-12 col-md-10"> 
                 <div class="row no-print mb-4">
                     <div class="col-12 col-md-4 mb-4 d-flex">
                         <div class="card w-100">
@@ -134,6 +134,7 @@
                     </div>
                 </div>
 
+                <!-- DESKTOP VIEW -->
                 <div class="d-none d-md-flex flex-wrap" id="calendar-column">
                     {% for day in days %}
                     {% set day_str = day.strftime('%Y-%m-%d') %}
@@ -182,6 +183,7 @@
                     {% endfor %}
                 </div>
                 
+                <!-- MOBILE VIEW -->
                 <div class="d-md-none" id="mobile-plan-view">
                     {% for day in days %}
                         {% set day_str = day.strftime('%Y-%m-%d') %}
@@ -194,11 +196,13 @@
                                     </button>
                                 </h5>
                             </div>
-                            <div id="collapse-{{ day_str }}" class="collapse {% if day == today %}show{% endif %}" data-parent="#mobile-plan-view">
+                            <div id="collapse-{{ day_str }}" class="collapse {% if day.strftime('%Y-%m-%d') == today.strftime('%Y-%m-%d') %}show{% endif %}" data-parent="#mobile-plan-view">
                                 <div class="card-body">
                                     {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
-                                        <h6>{{ slot }}</h6>
-                                        <div class="meal-type-slot sortable-list">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6>{{ slot }}</h6>
+                                        </div>
+                                        <div class="meal-type-slot mobile-slot" data-date="{{ day_str }}" data-slot="{{ slot }}">
                                             {% if planned_meals[day_str] and planned_meals[day_str][slot] %}
                                                 {% for meal in planned_meals[day_str][slot] %}
                                                     {% if meal.recipe_id %}
@@ -220,11 +224,32 @@
     </div>
 </form>
 
+<!-- MODAL FOR MOBILE RECIPE SELECTION -->
+<div class="modal fade" id="addRecipeModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Add to Plan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="search" id="modal-recipe-search" class="form-control mb-3" placeholder="Search recipes...">
+        <div id="modal-recipe-list">
+          <!-- Recipe list will be populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const allRecipesForJs = {{ recipes_for_js | tojson }};
         let allSavedMeals = [];
         const saveButton = document.getElementById('save-plan-btn');
+        let currentMobileSlot = null;
 
         function markPlanAsChanged() { saveButton.disabled = false; }
 
@@ -290,7 +315,7 @@
             }
         }
 
-        function initializeAll() {
+        function initializeDesktopDragDrop() {
             const allSortableLists = document.querySelectorAll('.sortable-list');
             allSortableLists.forEach(list => {
                 new Sortable(list, {
@@ -311,6 +336,64 @@
                     onUpdate: () => { updateAllHiddenInputs(); markPlanAsChanged(); }
                 });
             });
+        }
+
+        document.querySelectorAll('.mobile-slot').forEach(slot => {
+            slot.addEventListener('click', function(e) {
+                if (e.target.classList.contains('remove-recipe-btn')) {
+                    e.target.closest('.recipe-card').remove();
+                    markPlanAsChanged();
+                    return;
+                }
+                if (e.target.classList.contains('recipe-card')) {
+                    return; // Don't open modal if a card itself is tapped
+                }
+                currentMobileSlot = this;
+                populateModalRecipeList();
+                $('#addRecipeModal').modal('show');
+            });
+        });
+
+        function populateModalRecipeList(filter = '') {
+            const recipeListContainer = document.getElementById('modal-recipe-list');
+            recipeListContainer.innerHTML = '';
+            const lowerFilter = filter.toLowerCase();
+
+            for (const mealType in allRecipesForJs) {
+                const filteredRecipes = allRecipesForJs[mealType].filter(r => r.name.toLowerCase().includes(lowerFilter));
+                if (filteredRecipes.length > 0) {
+                    const typeHeader = document.createElement('h6');
+                    typeHeader.className = 'mt-3';
+                    typeHeader.textContent = mealType;
+                    recipeListContainer.appendChild(typeHeader);
+
+                    filteredRecipes.forEach(recipe => {
+                        const recipeButton = document.createElement('button');
+                        recipeButton.type = 'button';
+                        recipeButton.className = 'btn btn-outline-primary btn-block text-left mb-2';
+                        recipeButton.textContent = recipe.name;
+                        recipeButton.onclick = () => addRecipeToMobileSlot(recipe);
+                        recipeListContainer.appendChild(recipeButton);
+                    });
+                }
+            }
+        }
+
+        document.getElementById('modal-recipe-search').addEventListener('input', function() {
+            populateModalRecipeList(this.value);
+        });
+
+        function addRecipeToMobileSlot(recipe) {
+            if (currentMobileSlot) {
+                const card = createCard({ type: 'recipe', ...recipe });
+                currentMobileSlot.appendChild(card);
+                markPlanAsChanged();
+                $('#addRecipeModal').modal('hide');
+            }
+        }
+
+        function initializeAll() {
+            initializeDesktopDragDrop();
             renderRecipeTray(allRecipesForJs);
             fetch('/api/get-saved-meals')
                 .then(res => res.json())
@@ -326,162 +409,162 @@
                         savedMealTray.appendChild(card);
                     });
                 });
-        }
+            
+            document.getElementById('printable-area').addEventListener('click', e => {
+                if (e.target.closest('.remove-recipe-btn')) {
+                    e.target.closest('.recipe-card').remove();
+                    updateAllHiddenInputs();
+                    markPlanAsChanged();
+                }
+            });
 
-        document.getElementById('printable-area').addEventListener('click', e => {
-            if (e.target.closest('.remove-recipe-btn')) {
-                e.target.closest('.recipe-card').remove();
-                updateAllHiddenInputs();
-                markPlanAsChanged();
-            }
-        });
-
-        document.getElementById('add-custom-item-btn').addEventListener('click', () => {
-            const input = document.getElementById('custom-item-input');
-            const tray = document.getElementById('custom-item-tray');
-            const itemName = input.value.trim();
-            if (itemName) {
-                const card = createCard({ type: 'custom', name: itemName }, false);
-                card.classList.add('recipe-tray-item');
-                tray.appendChild(card);
-                input.value = '';
-            }
-        });
-        
-        document.getElementById('clear-plan-btn').addEventListener('click', () => {
-             if (confirm("Are you sure you want to clear the entire plan for this week?")) {
-                document.querySelectorAll('.meal-type-slot').forEach(slot => slot.innerHTML = '');
-                updateAllHiddenInputs();
-                markPlanAsChanged();
-             }
-        });
-
-        document.getElementById('save-historical-btn').addEventListener('click', () => {
-            const defaultName = `Week of ${new Date(document.querySelector('.day-card').dataset.dayStr + 'T00:00:00').toLocaleDateString()}`;
-            const planName = prompt("Enter a name for this new template:", defaultName);
-            if (planName) {
-                document.getElementById('historical-plan-name-input').value = planName;
-                document.getElementById('meal-plan-form').submit();
-            }
-        });
-
-        document.querySelectorAll('.load-historical-plan-btn').forEach(btn => {
-            btn.addEventListener('click', e => {
-                e.preventDefault();
-                if (!confirm("This will replace your current weekly plan with the loaded plan. Are you sure?")) return;
-                fetch(`/api/load-historical-plan/${e.target.dataset.planId}`)
-                .then(res => res.json())
-                .then(data => {
+            document.getElementById('add-custom-item-btn').addEventListener('click', () => {
+                const input = document.getElementById('custom-item-input');
+                const tray = document.getElementById('custom-item-tray');
+                const itemName = input.value.trim();
+                if (itemName) {
+                    const card = createCard({ type: 'custom', name: itemName }, false);
+                    card.classList.add('recipe-tray-item');
+                    tray.appendChild(card);
+                    input.value = '';
+                }
+            });
+            
+            document.getElementById('clear-plan-btn').addEventListener('click', () => {
+                 if (confirm("Are you sure you want to clear the entire plan for this week?")) {
                     document.querySelectorAll('.meal-type-slot').forEach(slot => slot.innerHTML = '');
-                    const dayCards = Array.from(document.querySelectorAll('.day-card'));
-                    for (const dayIndex in data) {
-                        const targetDayCard = dayCards[parseInt(dayIndex)];
-                        if (targetDayCard) {
-                            for (const slotName in data[dayIndex]) {
-                                const targetSlotEl = targetDayCard.querySelector(`#day-${targetDayCard.dataset.dayStr}-${slotName.replace(' ', '-')}`);
-                                if (targetSlotEl) {
-                                    data[dayIndex][slotName].forEach(item => {
-                                        targetSlotEl.appendChild(createCard(item));
-                                    });
+                    updateAllHiddenInputs();
+                    markPlanAsChanged();
+                 }
+            });
+
+            document.getElementById('save-historical-btn').addEventListener('click', () => {
+                const defaultName = `Week of ${new Date(document.querySelector('.day-card').dataset.dayStr + 'T00:00:00').toLocaleDateString()}`;
+                const planName = prompt("Enter a name for this new template:", defaultName);
+                if (planName) {
+                    document.getElementById('historical-plan-name-input').value = planName;
+                    document.getElementById('meal-plan-form').submit();
+                }
+            });
+
+            document.querySelectorAll('.load-historical-plan-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.preventDefault();
+                    if (!confirm("This will replace your current weekly plan with the loaded plan. Are you sure?")) return;
+                    fetch(`/api/load-historical-plan/${e.target.dataset.planId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        document.querySelectorAll('.meal-type-slot').forEach(slot => slot.innerHTML = '');
+                        const dayCards = Array.from(document.querySelectorAll('.day-card'));
+                        for (const dayIndex in data) {
+                            const targetDayCard = dayCards[parseInt(dayIndex)];
+                            if (targetDayCard) {
+                                for (const slotName in data[dayIndex]) {
+                                    const targetSlotEl = targetDayCard.querySelector(`#day-${targetDayCard.dataset.dayStr}-${slotName.replace(' ', '-')}`);
+                                    if (targetSlotEl) {
+                                        data[dayIndex][slotName].forEach(item => {
+                                            targetSlotEl.appendChild(createCard(item));
+                                        });
+                                    }
                                 }
                             }
                         }
-                    }
-                    updateAllHiddenInputs();
-                    markPlanAsChanged();
-                    alert("Plan loaded! Click the blue 'Apply' button to save these changes for the week.");
+                        updateAllHiddenInputs();
+                        markPlanAsChanged();
+                        alert("Plan loaded! Click the blue 'Apply' button to save these changes for the week.");
+                    });
                 });
             });
-        });
 
-        const searchInput = document.getElementById('recipe-search');
-        searchInput.addEventListener('keyup', () => {
-            const query = searchInput.value.toLowerCase();
-            const filtered = {};
-            for (const type in allRecipesForJs) {
-                filtered[type] = allRecipesForJs[type].filter(r => r.name.toLowerCase().includes(query));
-            }
-            renderRecipeTray(filtered);
-        });
-
-        function generateSuggestions(allRecipes) {
-            const suggestions = {};
-            for (const mealType in allRecipes) {
-                const recipesForType = allRecipes[mealType];
-                if (recipesForType.length > 0) {
-                    const shuffled = [...recipesForType].sort(() => 0.5 - Math.random());
-                    const sampleSize = Math.min(recipesForType.length, 5);
-                    suggestions[mealType] = shuffled.slice(0, sampleSize);
-                } else {
-                    suggestions[mealType] = [];
+            const searchInput = document.getElementById('recipe-search');
+            searchInput.addEventListener('keyup', () => {
+                const query = searchInput.value.toLowerCase();
+                const filtered = {};
+                for (const type in allRecipesForJs) {
+                    filtered[type] = allRecipesForJs[type].filter(r => r.name.toLowerCase().includes(query));
                 }
-            }
-            return suggestions;
-        }
+                renderRecipeTray(filtered);
+            });
 
-        document.getElementById('suggest-recipes-btn').addEventListener('click', () => {
-            const suggestedRecipes = generateSuggestions(allRecipesForJs);
-            renderRecipeTray(suggestedRecipes);
-        });
-
-        document.querySelectorAll('.meal-eaten-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const btn = this;
-                const originalIcon = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-                const data = {
-                    date: btn.dataset.date,
-                    slot: btn.dataset.slot
-                };
-
-                fetch('/api/mark-meal-eaten', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                })
-                .then(response => response.json())
-                .then(result => {
-                    if (result.success) {
-                        btn.classList.toggle('btn-outline-secondary', !result.is_eaten);
-                        btn.classList.toggle('btn-success', result.is_eaten);
+            function generateSuggestions(allRecipes) {
+                const suggestions = {};
+                for (const mealType in allRecipes) {
+                    const recipesForType = allRecipes[mealType];
+                    if (recipesForType.length > 0) {
+                        const shuffled = [...recipesForType].sort(() => 0.5 - Math.random());
+                        const sampleSize = Math.min(recipesForType.length, 5);
+                        suggestions[mealType] = shuffled.slice(0, sampleSize);
                     } else {
-                        alert('Error: ' + result.error);
+                        suggestions[mealType] = [];
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An unexpected error occurred.');
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = originalIcon;
+                }
+                return suggestions;
+            }
+
+            document.getElementById('suggest-recipes-btn').addEventListener('click', () => {
+                const suggestedRecipes = generateSuggestions(allRecipesForJs);
+                renderRecipeTray(suggestedRecipes);
+            });
+
+            document.querySelectorAll('.meal-eaten-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const btn = this;
+                    const originalIcon = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                    const data = {
+                        date: btn.dataset.date,
+                        slot: btn.dataset.slot
+                    };
+
+                    fetch('/api/mark-meal-eaten', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            btn.classList.toggle('btn-outline-secondary', !result.is_eaten);
+                            btn.classList.toggle('btn-success', result.is_eaten);
+                        } else {
+                            alert('Error: ' + result.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An unexpected error occurred.');
+                    })
+                    .finally(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = originalIcon;
+                    });
                 });
             });
-        });
 
-        const datePickerInput = document.getElementById('date-picker-input');
-        const datePickerTrigger = document.getElementById('date-picker-trigger');
-        const fpInstance = flatpickr(datePickerInput, {
-            dateFormat: "Y-m-d",
-            static: true, 
-            onChange: function(selectedDates, dateStr, instance) {
-                const selectedDate = selectedDates[0];
-                const dayOfWeek = selectedDate.getDay(); 
-                const diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
-                const monday = new Date(selectedDate.setDate(diff));
-                const formattedMonday = monday.toISOString().split('T')[0];
-                window.location.href = `/meal-plan?start_date=${formattedMonday}`;
-            }
-        });
-        
-        datePickerTrigger.addEventListener('click', () => {
-            fpInstance.open();
-        });
+            const datePickerInput = document.getElementById('date-picker-input');
+            const datePickerTrigger = document.getElementById('date-picker-trigger');
+            const fpInstance = flatpickr(datePickerInput, {
+                dateFormat: "Y-m-d",
+                static: true, 
+                onChange: function(selectedDates, dateStr, instance) {
+                    const selectedDate = selectedDates[0];
+                    const dayOfWeek = selectedDate.getDay(); 
+                    const diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+                    const monday = new Date(selectedDate.setDate(diff));
+                    const formattedMonday = monday.toISOString().split('T')[0];
+                    window.location.href = `/meal-plan?start_date=${formattedMonday}`;
+                }
+            });
+            
+            datePickerTrigger.addEventListener('click', () => {
+                fpInstance.open();
+            });
 
-        initializeAll();
-        saveButton.disabled = true;
+            initializeAll();
+            saveButton.disabled = true;
+        }
     });
 </script>
 {% endblock %}

@@ -186,6 +186,7 @@ body.cooking-mode-active .navbar { display: none !important; }
     border-color: #dee2e6 #dee2e6 var(--card-bg) !important;
 }
 
+
 /* =================================================================== */
 /* ===== NEW SECTION: MOBILE-SPECIFIC FIXES (Phones & Portrait) ===== */
 /* =================================================================== */
@@ -278,16 +279,29 @@ body.cooking-mode-active .navbar { display: none !important; }
         min-height: 80px;
         padding: 0.2rem;
         font-size: 0.7rem;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        position: relative;
     }
-    body.page-monthly-plan .meal-item {
-        font-size: 0.65rem;
-        padding: 2px 2px 2px 12px;
+    body.page-monthly-plan .calendar-day .day-number {
+        position: absolute;
+        top: 2px;
+        left: 4px;
+        font-size: 0.6rem;
+        font-weight: normal;
+        color: #6c757d;
     }
-    body.page-monthly-plan .meal-item::before {
-        left: 3px;
-        width: 6px;
-        height: 6px;
+    body.page-monthly-plan .calendar-day.has-meals {
+        cursor: pointer;
+        background-color: #e9f2ff;
+        font-weight: 600;
+        color: var(--primary-blue);
     }
+    body.page-monthly-plan .day-calories {
+        font-size: 0.8rem;
+    }
+
 
     /* --- Shopping List Page (page-shopping-list) Fixes --- */
     body.page-shopping-list .form-inline {

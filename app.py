@@ -840,12 +840,20 @@ def monthly_plan():
         MealPlan.meal_date.between(first_day_of_calendar, last_day_of_calendar)
     ).all()
 
-    planned_meals = {}
+    # UPDATED: Create a detailed summary dictionary for the "Heat Map" view
+    daily_summaries = {}
+    for day_row in month_days:
+        for day in day_row:
+            day_str = day.strftime('%Y-%m-%d')
+            daily_summaries[day_str] = {'calories': 0, 'meals': []}
+
     for meal in all_meals_in_view:
         day_str = meal.meal_date.strftime('%Y-%m-%d')
-        if day_str not in planned_meals:
-            planned_meals[day_str] = []
-        planned_meals[day_str].append(meal)
+        if day_str in daily_summaries:
+            meal_name = meal.recipe.name if meal.recipe else meal.custom_item_name
+            daily_summaries[day_str]['meals'].append(f"{meal.meal_slot}: {meal_name}")
+            if meal.recipe and meal.recipe.calories:
+                daily_summaries[day_str]['calories'] += meal.recipe.calories
     
     current_month_date = date(year, month, 1)
     prev_month_date = current_month_date - timedelta(days=1)
@@ -891,7 +899,7 @@ def monthly_plan():
     
     return render_template('monthly_plan.html', page_class='page-monthly-plan',
                            calendar_data=month_days,
-                           planned_meals=planned_meals,
+                           daily_summaries=daily_summaries,
                            nav=nav,
                            monthly_stats=monthly_stats,
                            weekly_summaries=weekly_summaries)
@@ -1363,7 +1371,7 @@ def save_new_recipe():
                     db.session.add(ingredient_obj)
                     db.session.flush()
                 
-                quantity_val = convert_quantity_to_float(ing_data.get('quantity', '0'))
+                quantity_val = convert_quantity_to_float(ing_data.get('quantity', 0))
                 
                 recipe_ingredient = RecipeIngredient(
                     recipe_id=new_recipe.id, 
@@ -1500,7 +1508,7 @@ def mark_meal_eaten():
 def consume_meal():
     data = request.get_json()
     meal_date_str = data.get('meal_date')
-    meal_slot = data.get('slot')
+    meal_slot = data.get('meal_slot')
 
     if not meal_date_str or not meal_slot:
         return jsonify({'status': 'error', 'message': 'Missing meal_date or meal_slot.'}), 400
