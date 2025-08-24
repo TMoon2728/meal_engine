@@ -1371,7 +1371,7 @@ def save_new_recipe():
                     db.session.add(ingredient_obj)
                     db.session.flush()
                 
-                quantity_val = convert_quantity_to_float(ing_data.get('quantity', 0))
+                quantity_val = convert_quantity_to_float(ing_data.get('quantity', '0'))
                 
                 recipe_ingredient = RecipeIngredient(
                     recipe_id=new_recipe.id, 
@@ -1608,11 +1608,16 @@ def meal_plan():
         week_start_date = datetime.strptime(week_start_str, '%Y-%m-%d').date()
         end_of_week = week_start_date + timedelta(days=6)
 
+        # --- FIX: Split delete and add into two separate transactions ---
+        
+        # 1. DELETE PHASE
         MealPlan.query.filter(
             MealPlan.household_id == current_user.household_id, 
             MealPlan.meal_date.between(week_start_date, end_of_week)
         ).delete(synchronize_session=False)
+        db.session.commit()
 
+        # 2. ADD PHASE
         for i in range(7):
             current_day = week_start_date + timedelta(days=i)
             day_str = current_day.strftime('%Y-%m-%d')
