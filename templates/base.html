@@ -15,11 +15,51 @@
     <meta name="theme-color" content="#3a7bd5"/>
     
     <title>Meal Engine</title>
+
+    <!-- FINAL FIX: Embed critical mobile styles directly to bypass all caching -->
+    <style>
+      @media (max-width: 767.98px) {
+          body { font-size: 0.95rem; }
+          h1 { font-size: 1.8rem; }
+          h2 { font-size: 1.5rem; }
+          .container-fluid { padding-left: 15px; padding-right: 15px; }
+
+          .form-inline { flex-direction: column; align-items: stretch; }
+          .form-inline .form-group { width: 100%; margin-right: 0 !important; margin-bottom: 10px; }
+          .form-inline .btn { width: 100%; margin-top: 10px; }
+
+          .recipe-actions { width: 100%; justify-content: space-between; margin-top: 1rem; }
+          .recipe-card { padding: 6px 20px 6px 10px; font-size: 0.85rem; }
+
+          body.page-meal-plan .col-md-2.no-print { display: none !important; }
+          body.page-meal-plan .col-md-10 { flex: 0 0 100%; max-width: 100%; }
+          body.page-meal-plan .d-flex.justify-content-between.align-items-center.flex-wrap { flex-direction: column; align-items: stretch !important; }
+          body.page-meal-plan .mr-auto { margin-right: 0 !important; text-align: center; margin-bottom: 1rem; }
+          body.page-meal-plan .d-flex.align-items-center { flex-direction: column; width: 100%; }
+          body.page-meal-plan .btn-group,
+          body.page-meal-plan .btn { width: 100%; margin-bottom: 0.5rem; margin-right: 0 !important; }
+          
+          body.page-monthly-plan .monthly-plan-header { flex-wrap: wrap; justify-content: center; gap: 10px; }
+          body.page-monthly-plan .monthly-plan-header h1 { order: -1; width: 100%; font-size: 1.8rem; }
+          body.page-monthly-plan .monthly-calendar-grid { min-height: auto; }
+          body.page-monthly-plan .calendar-header { font-size: 0.75rem; padding: 0.4rem 0.2rem; }
+          body.page-monthly-plan .calendar-day { min-height: 80px; padding: 0.2rem; font-size: 0.7rem; align-items: center; justify-content: center; text-align: center; position: relative; }
+          body.page-monthly-plan .calendar-day .day-number { position: absolute; top: 2px; left: 4px; font-size: 0.6rem; font-weight: normal; color: #6c757d; }
+          body.page-monthly-plan .calendar-day.has-meals { cursor: pointer; background-color: #e9f2ff; font-weight: 600; color: var(--primary-blue); }
+          body.page-monthly-plan .day-calories { font-size: 0.8rem; }
+
+          body.page-shopping-list .form-inline { flex-direction: column; align-items: stretch; }
+
+          body.page-recipes .card.p-3 .d-flex.justify-content-between { flex-direction: column; }
+          body.page-recipes .card.p-3 .flex-grow-1 { max-width: 100% !important; width: 100%; }
+          body.page-recipes .card.p-3 .d-flex.justify-content-end { flex-direction: column; width: 100%; margin-top: 1rem; }
+          body.page-recipes .card.p-3 .btn-group { width: 100%; margin-right: 0 !important; margin-bottom: 0.5rem; }
+          body.page-recipes .card.p-3 .btn-group .btn { flex-grow: 1; }
+      }
+    </style>
+
   </head>
   <body class="{{ page_class or '' }}">
-  
-    <!-- ===== DEFINITIVE TEST LINE ===== -->
-    <h1 style="background-color: yellow; color: black; text-align: center; padding: 20px; margin: 0;">IF YOU SEE THIS, THE HTML IS UPDATING.</h1>
     
     <nav class="navbar navbar-expand-lg navbar-dark no-print">
       <a class="navbar-brand" href="{{ url_for('index') }}">Meal Engine</a>
