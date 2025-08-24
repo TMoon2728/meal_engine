@@ -291,7 +291,6 @@
                 dayCard.querySelectorAll('.meal-type-slot .recipe-card').forEach(card => {
                     const slotId = card.closest('.meal-type-slot').id;
                     const slot = slotId.split('-').pop();
-                    
                     const hiddenInput = document.createElement('input');
                     hiddenInput.type = 'hidden';
                     if (card.dataset.recipeId) {
@@ -364,6 +363,28 @@
             const recipeListContainer = document.getElementById('modal-recipe-list');
             recipeListContainer.innerHTML = '';
             const lowerFilter = filter.toLowerCase();
+
+            // Add Custom Items from the tray
+            const customItems = document.querySelectorAll('#custom-item-tray .recipe-card');
+            if (customItems.length > 0) {
+                const customHeader = document.createElement('h6');
+                customHeader.className = 'mt-3';
+                customHeader.textContent = 'Custom Items';
+                recipeListContainer.appendChild(customHeader);
+                customItems.forEach(item => {
+                    const itemName = item.dataset.itemName;
+                    if (itemName.toLowerCase().includes(lowerFilter)) {
+                        const customButton = document.createElement('button');
+                        customButton.type = 'button';
+                        customButton.className = 'btn btn-outline-secondary btn-block text-left mb-2';
+                        customButton.textContent = itemName;
+                        customButton.onclick = () => addCustomItemToMobileSlot(itemName);
+                        recipeListContainer.appendChild(customButton);
+                    }
+                });
+            }
+
+            // Add Recipes
             for (const mealType in allRecipesForJs) {
                 const filteredRecipes = allRecipesForJs[mealType].filter(r => r.name.toLowerCase().includes(lowerFilter));
                 if (filteredRecipes.length > 0) {
@@ -395,12 +416,21 @@
                 $('#addRecipeModal').modal('hide');
             }
         }
+        
+        function addCustomItemToMobileSlot(itemName) {
+            if (currentMobileSlot) {
+                const card = createCard({ type: 'custom', name: itemName });
+                currentMobileSlot.appendChild(card);
+                markPlanAsChanged();
+                $('#addRecipeModal').modal('hide');
+            }
+        }
 
         mealPlanForm.addEventListener('submit', function() {
             const mobileView = document.getElementById('mobile-plan-view');
             if (window.getComputedStyle(mobileView).display !== 'none') {
                 const mobileInputContainer = document.getElementById('mobile-hidden-inputs');
-                mobileInputContainer.innerHTML = ''; // Clear previous inputs
+                mobileInputContainer.innerHTML = '';
                 document.querySelectorAll('#mobile-plan-view .mobile-slot').forEach(slot => {
                     const dayStr = slot.dataset.date;
                     const slotName = slot.dataset.slot;
