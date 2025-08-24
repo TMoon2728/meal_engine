@@ -364,7 +364,6 @@
             recipeListContainer.innerHTML = '';
             const lowerFilter = filter.toLowerCase();
 
-            // Add Custom Items from the tray
             const customItems = document.querySelectorAll('#custom-item-tray .recipe-card');
             if (customItems.length > 0) {
                 const customHeader = document.createElement('h6');
@@ -384,7 +383,6 @@
                 });
             }
 
-            // Add Recipes
             for (const mealType in allRecipesForJs) {
                 const filteredRecipes = allRecipesForJs[mealType].filter(r => r.name.toLowerCase().includes(lowerFilter));
                 if (filteredRecipes.length > 0) {
@@ -429,8 +427,14 @@
         mealPlanForm.addEventListener('submit', function() {
             const mobileView = document.getElementById('mobile-plan-view');
             if (window.getComputedStyle(mobileView).display !== 'none') {
+                // FIX: First, clear any stale inputs from the hidden desktop view
+                document.querySelectorAll('#calendar-column .hidden-inputs').forEach(container => {
+                    container.innerHTML = '';
+                });
+
+                // NOW, proceed with building the mobile inputs
                 const mobileInputContainer = document.getElementById('mobile-hidden-inputs');
-                mobileInputContainer.innerHTML = '';
+                mobileInputContainer.innerHTML = ''; // Clear previous mobile inputs
                 document.querySelectorAll('#mobile-plan-view .mobile-slot').forEach(slot => {
                     const dayStr = slot.dataset.date;
                     const slotName = slot.dataset.slot;
@@ -544,7 +548,7 @@
                         suggestions[mealType] = [];
                     }
                 }
-                renderRecipeTray(suggestions);
+                renderRecipeTray(suggestedRecipes);
             });
             document.querySelectorAll('.meal-eaten-btn').forEach(button => {
                 button.addEventListener('click', function() {
