@@ -83,9 +83,9 @@
     </div>
   </div>
 
+  <!-- ===== THIS IS THE CORRECTED STATS ROW WITH ALL THREE WIDGETS ===== -->
   <div class="row">
-    <!-- ===== THIS IS THE NEW "MOST MADE" WIDGET ===== -->
-    <div class="col-12 col-md-6 mb-4">
+    <div class="col-12 col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
             <div class="card-header text-center">
                 <h5 class="my-0"><i class="fas fa-trophy"></i> Your Top Recipes</h5>
@@ -106,7 +106,7 @@
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 mb-4">
+    <div class="col-12 col-md-6 col-lg-4 mb-4">
       <div class="card h-100">
         <a href="{{ url_for('meal_plan') }}" class="text-dark">
           <div class="card-header text-center">
@@ -126,6 +126,32 @@
               {% set percentage = (consumed_val / scheduled_val * 100) if scheduled_val > 0 else 0 %}
               <div class="progress" style="height: 20px;">
                 <div class="progress-bar" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_val|default(0) }}" aria-valuemin="0" aria-valuemax="{{ scheduled_val|default(1) }}"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+     <div class="col-12 col-lg-4 mb-4">
+       <div class="card h-100">
+        <a href="{{ url_for('monthly_plan') }}" class="text-dark">
+          <div class="card-header text-center">
+            <h5 class="my-0"><i class="fas fa-calendar-alt"></i> This Month's Nutrition</h5>
+          </div>
+        </a>
+        <div class="card-body">
+          <p class="text-muted small text-center">Consumed vs. Scheduled for {{ g.current_month_name }}</p>
+           {% for nutrient in ['calories', 'protein', 'fat', 'carbs'] %}
+            {% set scheduled_val = monthly_stats.scheduled[nutrient] %}
+            {% set consumed_val = monthly_stats.consumed[nutrient] %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between">
+                <strong>{{ nutrient|capitalize }}</strong>
+                <span>{{ (consumed_val)|default(0)|round|int }} / {{ (scheduled_val)|default(0)|round|int }} {{ 'g' if nutrient != 'calories' else '' }}</span>
+              </div>
+              {% set percentage = (consumed_val / scheduled_val * 100) if scheduled_val > 0 else 0 %}
+              <div class="progress" style="height: 20px;">
+                <div class="progress-bar bg-secondary" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_val|default(0) }}" aria-valuemin="0" aria-valuemax="{{ scheduled_val|default(1) }}"></div>
               </div>
             </div>
           {% endfor %}
