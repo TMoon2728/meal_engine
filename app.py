@@ -419,7 +419,6 @@ def index():
     manual_shopping_items = ShoppingListItem.query.filter_by(household_id=current_user.household_id).count()
     items_to_buy_count += manual_shopping_items
 
-    # --- FIX: New query for "Most Made" recipes ---
     most_made_recipes = db.session.query(
         Recipe,
         func.count(MealPlan.recipe_id).label('meal_count')
@@ -1131,22 +1130,30 @@ def build_plan_api():
     use_pantry = data.get('use_pantry', False)
     focus_favorites = data.get('focus_favorites', False)
     takeout_days = int(data.get('takeout_days', 0))
+    # --- FIX: Get the new meal_slots parameter from the request ---
+    meal_slots_to_plan = data.get('meal_slots', ['Breakfast', 'Lunch', 'Dinner'])
+    if not meal_slots_to_plan: # Ensure it's never empty
+        meal_slots_to_plan = ['Breakfast', 'Lunch', 'Dinner']
 
     all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     
-    breakfast_recipes = [r for r in all_recipes if r.meal_type in ('Breakfast', 'Snack')]
-    lunch_recipes = [r for r in all_recipes if r.meal_type in ('Lunch', 'Side Dish', 'Main Course', 'Meal Prep')]
-    dinner_recipes = [r for r in all_recipes if r.meal_type in ('Main Course', 'Meal Prep')]
-    
-    breakfast_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in breakfast_recipes]) if breakfast_recipes else "No breakfast recipes available."
-    lunch_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in lunch_recipes]) if lunch_recipes else "No lunch recipes available."
-    dinner_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in dinner_recipes]) if dinner_recipes else "No dinner recipes available."
+    # Dynamically build recipe lists based on requested slots
+    prompt_sections = []
+    if 'Breakfast' in meal_slots_to_plan:
+        breakfast_recipes = [r for r in all_recipes if r.meal_type in ('Breakfast', 'Snack')]
+        breakfast_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in breakfast_recipes]) if breakfast_recipes else "No breakfast recipes available."
+        prompt_sections.append(f"Available Breakfasts:\n{breakfast_list}")
 
-    prompt_sections = [
-        f"Available Breakfasts:\n{breakfast_list}",
-        f"Available Lunches:\n{lunch_list}",
-        f"Available Dinners:\n{dinner_list}"
-    ]
+    if 'Lunch' in meal_slots_to_plan:
+        lunch_recipes = [r for r in all_recipes if r.meal_type in ('Lunch', 'Side Dish', 'Main Course', 'Meal Prep')]
+        lunch_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in lunch_recipes]) if lunch_recipes else "No lunch recipes available."
+        prompt_sections.append(f"Available Lunches:\n{lunch_list}")
+
+    if 'Dinner' in meal_slots_to_plan:
+        dinner_recipes = [r for r in all_recipes if r.meal_type in ('Main Course', 'Meal Prep')]
+        dinner_list = "\n".join([f"id: {r.id}, name: \"{r.name}\"" for r in dinner_recipes]) if dinner_recipes else "No dinner recipes available."
+        prompt_sections.append(f"Available Dinners:\n{dinner_list}")
+    
     prompt_sections_str = "\n\n".join(prompt_sections)
 
     prompt_context = ""
@@ -1161,30 +1168,43 @@ def build_plan_api():
             fav_list = ", ".join([f'"{r.name}"' for r in favorite_recipes])
             prompt_context += f"\nCONTEXT: The user enjoys these recipes: {fav_list}."
 
+    # --- FIX: Make instruction string dynamic based on meal_slots_to_plan ---
+    meal_slots_str = ", ".join(meal_slots_to_plan)
+    
     if duration == 'month':
         year = int(data.get('year'))
         month = int(data.get('month'))
         _, num_days = calendar.monthrange(year, month)
         
         instruction = (
-            f"You must select recipes for Breakfast, Lunch, and Dinner for each of the {num_days} days of the month. Follow these rules:\n"
-            f"1. Create exactly {takeout_days} 'Takeout Night' dinners (id: null). Space them out logically, preferably on Fridays or Saturdays.\n"
-            "2. For economy and to reduce waste, plan for 'Leftovers' for lunch (id: null). A dinner recipe should typically be followed by a 'Leftovers' lunch the next day.\n"
-            "3. Ensure high variety. Do not repeat the same dinner recipe within a 10-day period. Breakfasts can be repeated more often.\n"
-            "4. The overall plan must feel logical and not random. Group similar cuisine types if it makes sense (e.g., a couple of Italian dishes in one week)."
+            f"You must select recipes for the following meals: {meal_slots_str} for each of the {num_days} days of the month. Follow these rules:\n"
+            "1. You MUST fill every requested meal slot for every day. Do not leave any requested slots empty.\n"
+        )
+        if 'Dinner' in meal_slots_to_plan:
+            instruction += f"2. Create exactly {takeout_days} 'Takeout Night' dinners (id: null). Space them out logically, preferably on Fridays or Saturdays.\n"
+        if 'Lunch' in meal_slots_to_plan and 'Dinner' in meal_slots_to_plan:
+            # --- FIX: Improved lunch planning instruction ---
+            instruction += "3. For economy and to reduce waste, plan for 'Leftovers' for lunch (id: null). A dinner should typically be followed by a 'Leftovers' lunch the next day. If the previous day was a 'Takeout Night' or you need variety, select a different recipe from the Available Lunches list.\n"
+        instruction += (
+            "4. Ensure high variety. Do not repeat the same dinner recipe within a 10-day period. Breakfasts can be repeated more often.\n"
+            "5. The overall plan must feel logical and not random."
         )
 
         json_structure = (f"Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the month as strings ('1', '2', ..., '{num_days}'). "
-                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'. If no meal is planned for a slot, use 'id': null and 'name': 'Unplanned'.")
+                          f"Each day's value must be another dictionary with ONLY these keys: {json.dumps(meal_slots_to_plan)}. The value for each meal slot is an object with 'id' and 'name'.")
     else: # week
         instruction = (
-            f"You must select recipes for Breakfast, Lunch, and Dinner for each of the 7 days (Monday to Sunday). Follow these rules:\n"
-            f"1. Create exactly {takeout_days} 'Takeout Night' dinners (id: null).\n"
-            "2. Plan for 'Leftovers' for lunch on at least 2-3 days, following a dinner from the previous night.\n"
-            "3. Do not repeat recipes."
+            f"You must select recipes for the following meals: {meal_slots_str} for each of the 7 days (Monday to Sunday). Follow these rules:\n"
+            "1. You MUST fill every requested meal slot for every day.\n"
         )
+        if 'Dinner' in meal_slots_to_plan:
+             instruction += f"2. Create exactly {takeout_days} 'Takeout Night' dinners (id: null).\n"
+        if 'Lunch' in meal_slots_to_plan and 'Dinner' in meal_slots_to_plan:
+            instruction += "3. Plan for 'Leftovers' for lunch on at least 2-3 days, following a dinner from the previous night. If leftovers are not appropriate, choose from the Available Lunches list.\n"
+        instruction += "4. Do not repeat recipes within the week."
+
         json_structure = ("Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the week ('Monday',..., 'Sunday'). "
-                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'. If no meal is planned for a slot, use 'id': null and 'name': 'Unplanned'.")
+                          f"Each day's value must be another dictionary with ONLY these keys: {json.dumps(meal_slots_to_plan)}. The value for each meal slot is an object with 'id' and 'name'.")
 
     final_prompt = (
         f"You are a Meal Plan Architect. Create a diverse and logical meal plan based on the theme: '{theme}'.\n"
