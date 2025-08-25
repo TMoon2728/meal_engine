@@ -1,7 +1,7 @@
+<!-- templates/view_recipe.html -->
 {% extends 'base.html' %}
 {% block content %}
 <div class="printable-content">
-  <!-- THIS IS THE FIX: Added 'flex-wrap' class to allow buttons to drop to a new line on mobile -->
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
     <h1>{{ recipe.name }}</h1>
     
@@ -11,33 +11,39 @@
          title="Toggle Favorite"></i>
 
       <!-- AI Remix Dropdown -->
-      <div class="btn-group mx-2">
-        <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <i class="fas fa-magic"></i> AI Remix
-        </button>
-        <div class="dropdown-menu dropdown-menu-right" id="remix-menu">
-            <div class="px-3 py-2">
-                <p class="mb-2 small text-muted">Let the AI modify this recipe for you!</p>
-                <div class="form-group">
-                    <select id="remix-type" class="form-control form-control-sm">
-                        <option value="Make it Healthier">Make it Healthier</option>
-                        <option value="Make it Gluten-Free">Make it Gluten-Free</option>
-                        <option value="Make it Vegetarian">Make it Vegetarian</option>
-                        <option value="Make it Vegan">Make it Vegan</option>
-                        <option value="Make it Dairy-Free">Make it Dairy-Free</option>
-                        <option value="Double the recipe">Double the Recipe</option>
-                        <option value="Halve the recipe">Halve the Recipe</option>
-                        <option value="Make it for a large crowd">Make it Crowd-Friendly</option>
-                        <option value="Make it for a small family">Make it Family-Friendly</option>
-                        <option value="Make it for a single person">Make a Single Serving</option>
-                        <option value="Make it for Meal Prep">Make it Meal Prep Friendly</option>
-                        <option value="Make it for Kids">Make it Kid-Friendly</option>
-                    </select>
-                </div>
-                <button id="remix-recipe-btn" class="btn btn-primary btn-sm btn-block">Remix!</button>
-            </div>
+      {% if current_user.subscription_plan == 'elite' or current_user.ai_credits > 0 %}
+        <div class="btn-group mx-2">
+          <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-magic"></i> AI Remix <span class="badge badge-light ml-1">1 credit</span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-right" id="remix-menu">
+              <div class="px-3 py-2">
+                  <p class="mb-2 small text-muted">Let the AI modify this recipe for you!</p>
+                  <div class="form-group">
+                      <select id="remix-type" class="form-control form-control-sm">
+                          <option value="Make it Healthier">Make it Healthier</option>
+                          <option value="Make it Gluten-Free">Make it Gluten-Free</option>
+                          <option value="Make it Vegetarian">Make it Vegetarian</option>
+                          <option value="Make it Vegan">Make it Vegan</option>
+                          <option value="Make it Dairy-Free">Make it Dairy-Free</option>
+                          <option value="Double the recipe">Double the Recipe</option>
+                          <option value="Halve the recipe">Halve the Recipe</option>
+                          <option value="Make it for a large crowd">Make it Crowd-Friendly</option>
+                          <option value="Make it for a small family">Make it Family-Friendly</option>
+                          <option value="Make it for a single person">Make a Single Serving</option>
+                          <option value="Make it for Meal Prep">Make it Meal Prep Friendly</option>
+                          <option value="Make it for Kids">Make it Kid-Friendly</option>
+                      </select>
+                  </div>
+                  <button id="remix-recipe-btn" class="btn btn-primary btn-sm btn-block">Remix!</button>
+              </div>
+          </div>
         </div>
-      </div>
+      {% else %}
+        <a href="{{ url_for('pricing') }}" class="btn btn-info mx-2 disabled" title="You are out of AI credits">
+          <i class="fas fa-magic"></i> AI Remix <i class="fas fa-lock small"></i>
+        </a>
+      {% endif %}
 
       <!-- Actions Dropdown -->
       <div class="btn-group">
@@ -80,7 +86,6 @@
   </div>
   {% endif %}
 
-  <!-- AI results will now appear in a dedicated section -->
   <div id="remix-results-section" style="display: none;">
       <hr>
       <h3><i class="fas fa-hat-wizard"></i> AI Remix Result</h3>
@@ -102,9 +107,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    
     let currentRemixData = null;
-
     const favoriteIcon = document.querySelector('.favorite-icon');
     if (favoriteIcon) {
         favoriteIcon.addEventListener('click', function() {
@@ -116,11 +119,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.is_favorite) {
-                    this.classList.remove('far');
-                    this.classList.add('fas');
+                    this.classList.remove('far'); this.classList.add('fas');
                 } else {
-                    this.classList.remove('fas');
-                    this.classList.add('far');
+                    this.classList.remove('fas'); this.classList.add('far');
                 }
             });
         });
@@ -132,7 +133,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const remixResultsSection = document.getElementById('remix-results-section');
         const remixResultBox = document.getElementById('remix-result-box');
         const saveRemixContainer = document.getElementById('save-remix-container');
-
         remixBtn.addEventListener('click', function() {
             remixResultsSection.style.display = 'block';
             saveRemixContainer.innerHTML = ''; 
@@ -151,18 +151,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 if(data.error) {
                     remixResultBox.textContent = `Error: ${data.error}`;
                     currentRemixData = null;
+                } else if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
                 } else {
                     currentRemixData = data.remixed_recipe;
-                    
                     let displayText = `<strong>${currentRemixData.name}</strong>\n\n<strong>Ingredients:</strong>\n`;
                     currentRemixData.ingredients.forEach(ing => {
                         displayText += `- ${ing.quantity || ''} ${ing.unit || ''} ${ing.name}\n`;
                     });
                     displayText += `\n<strong>Instructions:</strong>\n${currentRemixData.instructions}`;
-                    
-                    const formattedHTML = displayText.replace(/\n/g, '<br>');
-                    remixResultBox.innerHTML = formattedHTML;
-
+                    remixResultBox.innerHTML = displayText.replace(/\n/g, '<br>');
                     const saveBtn = document.createElement('button');
                     saveBtn.className = 'btn btn-success';
                     saveBtn.id = 'save-remix-btn';
@@ -176,13 +174,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentRemixData = null;
             });
         });
-
         saveRemixContainer.addEventListener('click', function(e){
             if (e.target.id === 'save-remix-btn') {
                 if (currentRemixData && confirm(`Are you sure you want to save "${currentRemixData.name}" as a new recipe?`)) {
                     e.target.disabled = true;
                     e.target.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-
                     fetch('/api/save-new-recipe', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -226,14 +222,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-
     const remixMenu = document.getElementById('remix-menu');
     if (remixMenu) {
         remixMenu.addEventListener('click', function(e) {
             e.stopPropagation();
         });
     }
-
 });
 </script>
 {% endblock %}

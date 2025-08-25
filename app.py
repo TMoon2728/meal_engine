@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 import pint 
+from functools import wraps
 
 from itsdangerous import URLSafeTimedSerializer
 import smtplib
@@ -18,6 +19,12 @@ from whitenoise import WhiteNoise
 
 import requests
 from bs4 import BeautifulSoup
+import stripe
+
+import requests
+from bs4 import BeautifulSoup
+import stripe
+from flask_migrate import Migrate # <<< ADD THIS LINE
 
 load_dotenv()
 app = Flask(__name__)
@@ -26,7 +33,22 @@ app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 
 app.config['SECRET_KEY'] = 'your_secret_key'
 
-# FIX FOR RENDER/HEROKU POSTGRESQL DATABASE URL
+app.config['STRIPE_SECRET_KEY'] = os.getenv('STRIPE_SECRET_KEY')
+app.config['STRIPE_WEBHOOK_SECRET'] = os.getenv('STRIPE_WEBHOOK_SECRET')
+stripe.api_key = app.config['STRIPE_SECRET_KEY']
+
+PLAN_CREDITS = {
+    'free': 5,
+    'premium': 50,
+    'elite': float('inf')
+}
+
+STRIPE_PRICE_IDS = {
+    'premium': os.getenv('STRIPE_PREMIUM_PRICE_ID'),
+    'elite': os.getenv('STRIPE_ELITE_PRICE_ID')
+}
+app.config['PLAN_CREDITS'] = PLAN_CREDITS
+
 database_url = os.getenv("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -35,6 +57,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///meal_engine.d
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
@@ -43,11 +66,28 @@ s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 def inject_cache_buster():
     return dict(cache_buster=int(time.time()))
 
-
 @app.before_request
 def before_request():
     g.current_month_name = date.today().strftime('%B')
 
+def deduct_ai_credit(user):
+    if user.subscription_plan != 'elite' and user.ai_credits > 0:
+        user.ai_credits -= 1
+
+def require_ai_credits(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.subscription_plan != 'elite' and current_user.ai_credits <= 0:
+            if request.path.startswith('/api/'):
+                return jsonify({
+                    'error': 'You have run out of AI credits for this month.', 
+                    'redirect_url': url_for('pricing')
+                }), 403
+            else:
+                flash('You have run out of AI credits. Please upgrade your plan to continue.', 'warning')
+                return redirect(url_for('pricing'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def convert_quantity_to_float(quantity_str):
     if not isinstance(quantity_str, str):
@@ -169,6 +209,15 @@ class User(db.Model, UserMixin):
     household_id = db.Column(db.Integer, db.ForeignKey('household.id'))
     household = db.relationship('Household', backref='members')
     recipes = db.relationship('Recipe', backref='author', lazy=True)
+    
+    subscription_plan = db.Column(db.String(50), nullable=False, default='free')
+    stripe_customer_id = db.Column(db.String(255), unique=True, nullable=True)
+    stripe_subscription_id = db.Column(db.String(255), unique=True, nullable=True)
+    ai_credits = db.Column(db.Integer, nullable=False, default=5)
+
+    @property
+    def is_premium_or_elite(self):
+        return self.subscription_plan in ['premium', 'elite']
 
 class GroceryStore(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -200,7 +249,6 @@ class Recipe(db.Model):
     protein = db.Column(db.Float, nullable=True)
     fat = db.Column(db.Float, nullable=True)
     carbs = db.Column(db.Float, nullable=True)
-
 
 class Ingredient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -260,7 +308,6 @@ class HistoricalPlanEntry(db.Model):
     custom_item_name = db.Column(db.String(150), nullable=True)
     recipe = db.relationship('Recipe')
 
-
 def send_reset_email(user_email, token):
     msg = EmailMessage()
     msg['Subject'] = 'Password Reset Request for Meal Engine'
@@ -314,7 +361,12 @@ def signup():
         db.session.flush()
 
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        user = User(email=email, password=hashed_password, household_id=new_household.id)
+        user = User(
+            email=email, 
+            password=hashed_password, 
+            household_id=new_household.id,
+            ai_credits=PLAN_CREDITS['free']
+        )
         db.session.add(user)
         db.session.commit()
         
@@ -376,6 +428,166 @@ def reset_password(token):
         return redirect(url_for('login'))
 
     return render_template('reset_password.html')
+
+@app.route('/pricing')
+@login_required
+def pricing():
+    return render_template('pricing.html', stripe_price_ids=STRIPE_PRICE_IDS)
+
+# DELETE your old create_checkout_session function and REPLACE it with this one:
+
+@app.route('/create-checkout-session', methods=['POST'])
+@login_required
+def create_checkout_session():
+    price_id = request.form.get('price_id')
+    
+    try:
+        customer_id = current_user.stripe_customer_id
+        
+        # --- START: NEW SELF-HEALING LOGIC ---
+        # If a customer ID exists, we must verify it's valid for the current mode (test/live).
+        if customer_id:
+            try:
+                stripe.Customer.retrieve(customer_id)
+            except stripe.error.InvalidRequestError as e:
+                # This error means the customer ID is from the wrong mode (e.g., a 'live' ID in 'test' mode).
+                # We will treat it as stale and create a new one.
+                print(f"Stale Stripe customer ID '{customer_id}' detected. Clearing and creating a new one.")
+                customer_id = None # Clear the invalid ID
+                current_user.stripe_customer_id = None
+                db.session.commit()
+        # --- END: NEW SELF-HEALING LOGIC ---
+
+        # If there is no valid customer ID, create a new one.
+        if not customer_id:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                name=current_user.email.split('@')[0]
+            )
+            customer_id = customer.id
+            current_user.stripe_customer_id = customer_id
+            db.session.commit()
+            print(f"Created and saved new Stripe customer ID: {customer_id}")
+
+        # By this point, customer_id is guaranteed to be valid for the current mode.
+        checkout_session = stripe.checkout.Session.create(
+            customer=customer_id,
+            line_items=[{'price': price_id, 'quantity': 1}],
+            mode='subscription',
+            success_url=url_for('index', _external=True) + '?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=url_for('pricing', _external=True),
+            allow_promotion_codes=True,
+        )
+        return redirect(checkout_session.url, code=303)
+
+    except Exception as e:
+        flash(f'Error creating checkout session: {str(e)}', 'danger')
+        return redirect(url_for('pricing'))
+
+@app.route('/stripe-webhook', methods=['POST'])
+def stripe_webhook():
+    print("\n--- WEBHOOK RECEIVED ---") # Check if the function is being called at all
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+    webhook_secret = app.config['STRIPE_WEBHOOK_SECRET']
+    
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, webhook_secret
+        )
+        print(f"--- Event Constructed Successfully: {event['type']} ---") # Check if the signature is valid
+    except ValueError as e:
+        print(f"!!! ERROR: Invalid payload: {e}")
+        return 'Invalid payload', 400
+    except stripe.error.SignatureVerificationError as e:
+        print(f"!!! ERROR: Invalid signature: {e}")
+        return 'Invalid signature', 400
+
+    if event['type'] == 'checkout.session.completed':
+        print("--- Handling checkout.session.completed ---")
+        session = event['data']['object']
+        customer_id = session.get('customer')
+        subscription_id = session.get('subscription')
+        print(f"--- Customer ID: {customer_id}, Subscription ID: {subscription_id} ---")
+
+        user = User.query.filter_by(stripe_customer_id=customer_id).first()
+        if user:
+            print(f"--- Found user: {user.email} ---")
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            price_id = subscription['items']['data'][0]['price']['id']
+            print(f"--- Price ID from subscription: {price_id} ---")
+            
+            new_plan = 'free' # Default
+            if price_id == STRIPE_PRICE_IDS['premium']:
+                new_plan = 'premium'
+            elif price_id == STRIPE_PRICE_IDS['elite']:
+                new_plan = 'elite'
+            
+            print(f"--- Determined new plan: {new_plan} ---")
+
+            user.subscription_plan = new_plan
+            user.stripe_subscription_id = subscription_id
+            user.ai_credits = PLAN_CREDITS[new_plan]
+            db.session.commit()
+            print(f"--- User {user.email} successfully upgraded in database! ---")
+        else:
+            print(f"!!! CRITICAL ERROR: Could not find user with customer ID: {customer_id} ---")
+
+
+    if event['type'] in ['customer.subscription.updated', 'customer.subscription.deleted']:
+        print(f"--- Handling {event['type']} ---")
+        # This part of the logic remains the same
+        session = event['data']['object']
+        subscription_id = session.get('id')
+
+        user = User.query.filter_by(stripe_subscription_id=subscription_id).first()
+        if user:
+            if session.get('cancel_at_period_end') or event['type'] == 'customer.subscription.deleted':
+                user.subscription_plan = 'free'
+                user.stripe_subscription_id = None
+                user.ai_credits = PLAN_CREDITS['free']
+                db.session.commit()
+                print(f"--- User {user.email}'s subscription was cancelled. Downgraded to free. ---")
+            else:
+                price_id = session['items']['data'][0]['price']['id']
+                new_plan = 'free'
+                if price_id == STRIPE_PRICE_IDS['premium']:
+                    new_plan = 'premium'
+                elif price_id == STRIPE_PRICE_IDS['elite']:
+                    new_plan = 'elite'
+                
+                if user.subscription_plan != new_plan:
+                    user.subscription_plan = new_plan
+                    user.ai_credits = PLAN_CREDITS[new_plan]
+                    db.session.commit()
+                    print(f"--- User {user.email} plan updated to {new_plan}. ---")
+        else:
+            print(f"!!! WARNING: Received subscription update for unknown subscription ID: {subscription_id} ---")
+
+
+    return 'Success', 200
+
+@app.route('/create-billing-portal-session', methods=['POST'])
+@login_required
+def create_billing_portal_session():
+    """
+    Creates and redirects to a Stripe Billing Portal session.
+    """
+    if not current_user.stripe_customer_id:
+        flash('No billing information found for your account.', 'warning')
+        return redirect(url_for('profile'))
+
+    return_url = url_for('profile', _external=True)
+    
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=current_user.stripe_customer_id,
+            return_url=return_url
+        )
+        return redirect(portal_session.url, code=303)
+    except Exception as e:
+        flash(f"Error accessing billing portal: {str(e)}", "danger")
+        return redirect(url_for('profile'))
 
 @app.route('/')
 def index():
@@ -533,6 +745,7 @@ def list_recipes():
 
 @app.route('/ai-quick-add', methods=['POST'])
 @login_required
+@require_ai_credits
 def ai_quick_add():
     recipe_name = request.form.get('recipe_name')
     if not recipe_name:
@@ -595,7 +808,8 @@ def ai_quick_add():
                 unit=ing_data.get('unit', '')
             )
             db.session.add(recipe_ingredient)
-            
+        
+        deduct_ai_credit(current_user)
         db.session.commit()
         flash(f'Successfully generated and saved "{recipe_data["name"]}"!', 'success')
     except Exception as e:
@@ -850,7 +1064,6 @@ def monthly_plan():
         MealPlan.meal_date.between(first_day_of_calendar, last_day_of_calendar)
     ).all()
 
-    # UPDATED: Create a detailed summary dictionary for the "Heat Map" view
     daily_summaries = {}
     for day_row in month_days:
         for day in day_row:
@@ -913,8 +1126,6 @@ def monthly_plan():
                            nav=nav,
                            monthly_stats=monthly_stats,
                            weekly_summaries=weekly_summaries)
-
-
 
 @app.route('/ai-architect')
 @login_required
@@ -1021,6 +1232,7 @@ def join_household(token):
 
 @app.route('/api/import-and-create-recipe', methods=['POST'])
 @login_required
+@require_ai_credits
 def import_and_create_recipe():
     data = request.get_json()
     url = data.get('url')
@@ -1108,6 +1320,7 @@ def import_and_create_recipe():
             )
             db.session.add(recipe_ingredient)
         
+        deduct_ai_credit(current_user)
         db.session.commit()
         
         flash(f'Successfully imported "{new_recipe.name}"! Please review the details and AI-generated nutritional info.', 'success')
@@ -1123,6 +1336,7 @@ def import_and_create_recipe():
 
 @app.route('/api/build-plan', methods=['POST'])
 @login_required
+@require_ai_credits
 def build_plan_api():
     data = request.get_json()
     duration = data.get('duration', 'week')
@@ -1130,14 +1344,12 @@ def build_plan_api():
     use_pantry = data.get('use_pantry', False)
     focus_favorites = data.get('focus_favorites', False)
     takeout_days = int(data.get('takeout_days', 0))
-    # --- FIX: Get the new meal_slots parameter from the request ---
     meal_slots_to_plan = data.get('meal_slots', ['Breakfast', 'Lunch', 'Dinner'])
-    if not meal_slots_to_plan: # Ensure it's never empty
+    if not meal_slots_to_plan: 
         meal_slots_to_plan = ['Breakfast', 'Lunch', 'Dinner']
 
     all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).all()
     
-    # Dynamically build recipe lists based on requested slots
     prompt_sections = []
     if 'Breakfast' in meal_slots_to_plan:
         breakfast_recipes = [r for r in all_recipes if r.meal_type in ('Breakfast', 'Snack')]
@@ -1168,7 +1380,6 @@ def build_plan_api():
             fav_list = ", ".join([f'"{r.name}"' for r in favorite_recipes])
             prompt_context += f"\nCONTEXT: The user enjoys these recipes: {fav_list}."
 
-    # --- FIX: Make instruction string dynamic based on meal_slots_to_plan ---
     meal_slots_str = ", ".join(meal_slots_to_plan)
     
     if duration == 'month':
@@ -1183,7 +1394,6 @@ def build_plan_api():
         if 'Dinner' in meal_slots_to_plan:
             instruction += f"2. Create exactly {takeout_days} 'Takeout Night' dinners (id: null). Space them out logically, preferably on Fridays or Saturdays.\n"
         if 'Lunch' in meal_slots_to_plan and 'Dinner' in meal_slots_to_plan:
-            # --- FIX: Improved lunch planning instruction ---
             instruction += "3. For economy and to reduce waste, plan for 'Leftovers' for lunch (id: null). A dinner should typically be followed by a 'Leftovers' lunch the next day. If the previous day was a 'Takeout Night' or you need variety, select a different recipe from the Available Lunches list.\n"
         instruction += (
             "4. Ensure high variety. Do not repeat the same dinner recipe within a 10-day period. Breakfasts can be repeated more often.\n"
@@ -1223,11 +1433,14 @@ def build_plan_api():
             response_payload['year'] = year
             response_payload['month'] = month
         
+        deduct_ai_credit(current_user)
+        db.session.commit()
+        
         return jsonify(response_payload)
     except Exception as e:
+        db.session.rollback()
         print(f"Build Plan Error: {e}\nResponse Text: {response.text if 'response' in locals() else 'No response'}")
         return jsonify({'error': f'The AI failed to generate a valid plan. Details: {str(e)}'}), 500
-
 
 @app.route('/api/save-ai-plan', methods=['POST'])
 @login_required
@@ -1326,6 +1539,7 @@ def toggle_favorite(recipe_id):
 
 @app.route('/api/generate-from-ingredients', methods=['POST'])
 @login_required
+@require_ai_credits
 def generate_from_ingredients_api():
     data = request.get_json()
     ingredients_text = data.get('ingredients', '')
@@ -1335,12 +1549,17 @@ def generate_from_ingredients_api():
         model = genai.GenerativeModel('gemini-1.5-pro')
         response = model.generate_content(prompt)
         ai_response = response.text
+        
+        deduct_ai_credit(current_user)
+        db.session.commit()
     except Exception as e:
+        db.session.rollback()
         ai_response = "Sorry, the AI assistant is unavailable."
     return jsonify({'generated_recipe': ai_response})
 
 @app.route('/api/remix-recipe', methods=['POST'])
 @login_required
+@require_ai_credits
 def remix_recipe_api():
     data = request.get_json()
     recipe_id = data.get('recipe_id')
@@ -1367,8 +1586,11 @@ def remix_recipe_api():
         if not all(k in remixed_data for k in ['name', 'instructions', 'ingredients']):
              raise ValueError("AI response was missing required keys.")
 
+        deduct_ai_credit(current_user)
+        db.session.commit()
         return jsonify({'remixed_recipe': remixed_data})
     except Exception as e:
+        db.session.rollback()
         print(f"Remix recipe error: {e}")
         return jsonify({'error': 'Sorry, the AI assistant could not generate a valid recipe remix.'})
 
@@ -1639,16 +1861,12 @@ def meal_plan():
         week_start_date = datetime.strptime(week_start_str, '%Y-%m-%d').date()
         end_of_week = week_start_date + timedelta(days=6)
 
-        # --- FIX: Split delete and add into two separate transactions ---
-        
-        # 1. DELETE PHASE
         MealPlan.query.filter(
             MealPlan.household_id == current_user.household_id, 
             MealPlan.meal_date.between(week_start_date, end_of_week)
         ).delete(synchronize_session=False)
         db.session.commit()
 
-        # 2. ADD PHASE
         for i in range(7):
             current_day = week_start_date + timedelta(days=i)
             day_str = current_day.strftime('%Y-%m-%d')
