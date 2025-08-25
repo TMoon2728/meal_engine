@@ -1,9 +1,36 @@
 {% extends 'base.html' %}
 {% block content %}
+<!-- THIS STYLE BLOCK IS THE FIX FOR MOBILE VIEW -->
+<style>
+    @media (max-width: 767.98px) {
+        .day-column-mobile-architect {
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        .recipe-tray-mobile, .custom-items-mobile {
+            display: block !important;
+        }
+        .ai-architect-main-content {
+            padding-top: 1rem;
+        }
+        #ai-plan-results-container .monthly-calendar-grid {
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            font-size: 0.8rem;
+        }
+         #ai-plan-results-container .calendar-day {
+            min-height: 80px;
+            padding: 2px;
+         }
+         #ai-plan-results-container .recipe-card {
+            font-size: 0.7rem;
+            padding: 3px 15px 3px 5px;
+         }
+    }
+</style>
 
 <div class="row">
-    <!-- NEW: Recipe Tray Column -->
-    <div class="col-md-2 no-print">
+    <!-- Desktop-Only Recipe Tray Column -->
+    <div class="col-md-2 no-print d-none d-md-block">
         <div class="sticky-top" style="top: 1rem;">
             <div class="card mb-3">
                 <div class="card-header">
@@ -39,7 +66,7 @@
     </div>
 
     <!-- Main AI Architect Card -->
-    <div class="col-md-10">
+    <div class="col-md-10 ai-architect-main-content">
         <div class="card mb-3">
             <div class="card-body">
                 <div class="text-center">
@@ -116,6 +143,26 @@
     </div>
 </div>
 
+<!-- MODAL FOR MOBILE RECIPE SELECTION -->
+<div class="modal fade" id="addRecipeModalArchitect" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitleArchitect">Add to Plan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="search" id="modal-recipe-search-architect" class="form-control mb-3" placeholder="Search recipes...">
+        <div id="modal-recipe-list-architect">
+          <!-- Recipe list will be populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const allRecipesForJs = {{ recipes_for_js | tojson }};
@@ -127,14 +174,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const monthYearSelector = document.getElementById('month-year-selector');
     
     let originalGeneratedPlan = null;
+    let currentMobileSlot = null; // Variable to hold the mobile slot being edited
 
-    // --- Helper function to create draggable cards ---
+    function isMobile() {
+        return window.innerWidth < 768;
+    }
+
     function createCard(item, includeRemoveButton = true) {
         const card = document.createElement('div');
         let itemTypeClass = 'custom';
         let mealType = 'Custom';
-        if (item.id) { // It's a recipe
-            const recipeDetails = allRecipesForJs[item.meal_type]?.find(r => r.id === item.id);
+        if (item.id) { 
+            const recipeDetails = allRecipesForJs['Main Course'].find(r => r.id === item.id) || allRecipesForJs['Side Dish'].find(r => r.id === item.id) || allRecipesForJs['Snack'].find(r => r.id === item.id) || allRecipesForJs['Meal Prep'].find(r => r.id === item.id);
             mealType = recipeDetails?.meal_type || 'Main Course';
             itemTypeClass = mealType.toLowerCase().replace(' ', '-');
         }
@@ -155,8 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return card;
     }
-
-    // --- Renders recipes into the left-side tray ---
+    
     function renderRecipeTray(recipes) {
         for (const mealType in recipes) {
             let simpleId = mealType === 'Meal Prep' ? 'prep-tray' : mealType.split(' ')[0].toLowerCase() + '-tray';
@@ -172,8 +222,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // --- Initializes SortableJS on a container ---
     function initializeSortable(container) {
+        if (isMobile()) return; // Do not initialize drag-drop on mobile
         container.querySelectorAll('.sortable-list').forEach(list => {
             new Sortable(list, {
                 group: { name: 'shared-group', pull: true, put: true },
@@ -191,12 +241,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- Renders the generated plan into an interactive calendar ---
     function displayPlan(response) {
         originalGeneratedPlan = response;
         const plan = response.plan;
         const duration = response.duration;
-        let planHtml = `<div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-3"><h2>Your AI-Generated Plan</h2><button id="save-ai-plan-btn" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save This Plan</button></div>`;
+        let planHtml = `<div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-3 flex-wrap"><h2>Your AI-Generated Plan</h2><button id="save-ai-plan-btn" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save This Plan</button></div>`;
 
         let planContainerId = `ai-${duration}-plan`;
         planHtml += `<div id="${planContainerId}">`;
@@ -205,7 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
             planHtml += `<div class="d-flex flex-wrap">`;
             const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
             daysOfWeek.forEach((day) => {
-                planHtml += `<div class="day-column"><div class="card day-card h-100"><div class="card-header text-center">${day}</div><div class="card-body day-card-body">`;
+                planHtml += `<div class="day-column day-column-mobile-architect"><div class="card day-card h-100"><div class="card-header text-center">${day}</div><div class="card-body day-card-body">`;
                 ['Breakfast', 'Lunch', 'Dinner'].forEach(slot => {
                     planHtml += `<h6 class="meal-type-header">${slot}</h6><div class="meal-type-slot sortable-list" data-day="${day}" data-slot="${slot}"></div>`;
                 });
@@ -233,7 +282,6 @@ document.addEventListener('DOMContentLoaded', function() {
         planHtml += `</div></div></div>`;
         resultsContainer.innerHTML = planHtml;
         
-        // Now, populate the generated structure with draggable cards
         const planContainer = document.getElementById(planContainerId);
         for (const day in plan) {
             if (duration === 'week') {
@@ -247,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  const dayEl = planContainer.querySelector(`[data-day="${day}"]`);
                  if(dayEl) {
                     ['Breakfast', 'Lunch', 'Dinner'].forEach(slot => {
-                        if(plan[day][slot]) {
+                        if(plan[day][slot] && plan[day][slot].name !== 'Unplanned') {
                             dayEl.appendChild(createCard(plan[day][slot]));
                         }
                     });
@@ -257,35 +305,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
         initializeSortable(planContainer);
     }
-
-    // --- NEW: Reads the current state of the DOM to build the final plan object ---
+    
     function getCurrentPlanFromDOM() {
         const finalPlan = {};
+        if (!originalGeneratedPlan) return null;
+
         if (originalGeneratedPlan.duration === 'week') {
             document.querySelectorAll('#ai-week-plan .sortable-list').forEach(slot => {
                 const day = slot.dataset.day;
                 const mealSlot = slot.dataset.slot;
                 const card = slot.querySelector('.recipe-card');
+                if (!finalPlan[day]) finalPlan[day] = {};
                 if (card) {
-                    if (!finalPlan[day]) finalPlan[day] = {};
                     finalPlan[day][mealSlot] = {
                         id: card.dataset.recipeId ? parseInt(card.dataset.recipeId) : null,
                         name: card.textContent.replace('×', '').trim()
                     };
+                } else {
+                    finalPlan[day][mealSlot] = { id: null, name: 'Unplanned' };
                 }
             });
         } else { // month
-            document.querySelectorAll('#ai-month-plan .sortable-list').forEach(dayContainer => {
-                const day = dayContainer.dataset.day;
-                const cards = dayContainer.querySelectorAll('.recipe-card');
-                if (cards.length > 0) {
-                    finalPlan[day] = { Breakfast: null, Lunch: null, Dinner: null };
-                    // This is a simple assignment; a more robust version could identify meal types
+            for(let i=1; i <= Object.keys(originalGeneratedPlan.plan).length; i++) {
+                const day = i.toString();
+                const dayContainer = document.querySelector(`#ai-month-plan [data-day="${day}"]`);
+                finalPlan[day] = { Breakfast: {id:null, name:'Unplanned'}, Lunch: {id:null, name:'Unplanned'}, Dinner: {id:null, name:'Unplanned'}};
+                if (dayContainer) {
+                    const cards = dayContainer.querySelectorAll('.recipe-card');
                     if (cards[0]) finalPlan[day].Breakfast = { id: cards[0].dataset.recipeId ? parseInt(cards[0].dataset.recipeId) : null, name: cards[0].textContent.replace('×', '').trim() };
                     if (cards[1]) finalPlan[day].Lunch = { id: cards[1].dataset.recipeId ? parseInt(cards[1].dataset.recipeId) : null, name: cards[1].textContent.replace('×', '').trim() };
                     if (cards[2]) finalPlan[day].Dinner = { id: cards[2].dataset.recipeId ? parseInt(cards[2].dataset.recipeId) : null, name: cards[2].textContent.replace('×', '').trim() };
                 }
-            });
+            }
         }
         return { ...originalGeneratedPlan, plan: finalPlan };
     }
@@ -323,16 +374,18 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(displayPlan)
         .catch(error => {
-            resultsContainer.innerHTML = `<div class="alert alert-danger">A network error occurred. Please try again.</div>`;
+            resultsContainer.innerHTML = `<div class="alert alert-danger">An error occurred. Please try again.</div>`;
             console.error('Error:', error);
         })
         .finally(() => { buildBtn.disabled = false; });
     });
     
+    // Main click handler for the results container
     resultsContainer.addEventListener('click', function(e) {
         if (e.target.id === 'save-ai-plan-btn') {
             const saveBtn = e.target;
             const finalPlanData = getCurrentPlanFromDOM();
+            if (!finalPlanData) return;
             let confirmMessage = `This will save the generated plan.`;
             if (finalPlanData.duration === 'month') {
                 const monthName = new Date(finalPlanData.year, finalPlanData.month - 1).toLocaleString('default', { month: 'long' });
@@ -360,8 +413,48 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.classList.contains('remove-recipe-btn')) {
             e.target.closest('.recipe-card').remove();
         }
+        // MOBILE-ONLY: Open modal on slot click
+        if (isMobile() && e.target.classList.contains('meal-type-slot')) {
+            currentMobileSlot = e.target;
+            document.getElementById('modalTitleArchitect').textContent = `Editing ${currentMobileSlot.dataset.day} - ${currentMobileSlot.dataset.slot}`;
+            populateModalRecipeListArchitect();
+            $('#addRecipeModalArchitect').modal('show');
+        }
     });
 
+    // --- Mobile Modal Logic ---
+    function populateModalRecipeListArchitect(filter = '') {
+        const listContainer = document.getElementById('modal-recipe-list-architect');
+        listContainer.innerHTML = '';
+        const lowerFilter = filter.toLowerCase();
+
+        for (const mealType in allRecipesForJs) {
+            const filteredRecipes = allRecipesForJs[mealType].filter(r => r.name.toLowerCase().includes(lowerFilter));
+            if (filteredRecipes.length > 0) {
+                const header = document.createElement('h6');
+                header.textContent = mealType;
+                listContainer.appendChild(header);
+                filteredRecipes.forEach(recipe => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-outline-primary btn-block text-left mb-2';
+                    btn.textContent = recipe.name;
+                    btn.onclick = () => {
+                        currentMobileSlot.innerHTML = ''; // Clear previous
+                        currentMobileSlot.appendChild(createCard(recipe));
+                        $('#addRecipeModalArchitect').modal('hide');
+                    };
+                    listContainer.appendChild(btn);
+                });
+            }
+        }
+    }
+
+    document.getElementById('modal-recipe-search-architect').addEventListener('input', function() {
+        populateModalRecipeListArchitect(this.value);
+    });
+
+
+    // --- Non-plan related listeners ---
     document.getElementById('add-custom-item-btn').addEventListener('click', () => {
         const input = document.getElementById('custom-item-input');
         const tray = document.getElementById('custom-item-tray');

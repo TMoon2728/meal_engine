@@ -13,29 +13,30 @@
       <div class="card mb-4 no-print">
         <div class="card-body">
           <h5 class="card-title">Add Item Manually</h5>
-          <form method="POST" action="{{ url_for('shopping_list') }}" class="form-inline">
+          <!-- THIS IS THE FIX: Replaced form-inline with a responsive form-row -->
+          <form method="POST" action="{{ url_for('shopping_list') }}">
             <input type="hidden" name="action" value="add_manual_item">
-            <div class="form-group col-6">
-                <label for="name" class="sr-only">Item Name</label>
-                <input type="text" class="form-control w-100" name="name" id="name" placeholder="e.g., Paper Towels" required>
+            <div class="form-row">
+                <div class="form-group col-sm-6">
+                    <label for="name">Item Name</label>
+                    <input type="text" class="form-control" name="name" id="name" placeholder="e.g., Paper Towels" required>
+                </div>
+                <div class="form-group col-sm-6">
+                  <label for="category">Category</label>
+                  <select name="category" id="category" class="form-control">
+                      <option value="Household">Household</option>
+                      <option value="Personal Care">Personal Care</option>
+                      <option value="Pets">Pets</option>
+                      <option value="Other">Other</option>
+                      <option disabled>-- Food --</option>
+                      <option value="Produce">Produce</option>
+                      <option value="Meat & Seafood">Meat & Seafood</option>
+                      <option value="Dairy & Eggs">Dairy & Eggs</option>
+                      <option value="Pantry">Pantry</option>
+                  </select>
+                </div>
             </div>
-            <div class="form-group col-4">
-              <label for="category" class="sr-only">Category</label>
-              <select name="category" id="category" class="form-control w-100">
-                  <option value="Household">Household</option>
-                  <option value="Personal Care">Personal Care</option>
-                  <option value="Pets">Pets</option>
-                  <option value="Other">Other</option>
-                  <option disabled>-- Food --</option>
-                  <option value="Produce">Produce</option>
-                  <option value="Meat & Seafood">Meat & Seafood</option>
-                  <option value="Dairy & Eggs">Dairy & Eggs</option>
-                  <option value="Pantry">Pantry</option>
-              </select>
-            </div>
-            <div class="col-2">
-              <button type="submit" class="btn btn-primary btn-block">Add</button>
-            </div>
+            <button type="submit" class="btn btn-primary">Add</button>
           </form>
         </div>
       </div>
@@ -73,7 +74,6 @@
                       {% endif %}
                     </span>
 
-                    <!-- THIS IS THE CORRECTED LOOP -->
                     <div class="btn-group no-print" role="group">
                       {% for store in stores %}
                         {% if loop.index <= 3 %}
@@ -109,7 +109,7 @@
         <div class="card-body">
           {% if ingredients_in_pantry %}
             <ul class="list-group list-group-flush">
-              {% for name, pantry_item in ingredients_in_pantry.items() %}
+              {% for name, pantry_item in ingredients_in_pentry.items() %}
                 <li class="list-group-item text-muted">
                   <i class="fas fa-check-circle text-success"></i>
                   You have {{ pantry_item.quantity }} {{ pantry_item.unit }} of <strong>{{ name }}</strong>

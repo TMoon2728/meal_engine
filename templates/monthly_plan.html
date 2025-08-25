@@ -1,6 +1,44 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<!-- THIS STYLE BLOCK IS THE FIX FOR MOBILE VIEW -->
+<style>
+    @media (max-width: 767.98px) {
+        .monthly-calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr); /* Ensure 7 equal columns */
+            min-height: auto; /* Allow the grid to determine its own height */
+        }
+        .calendar-day {
+            min-height: 75px; /* Set a consistent minimum height for all cells */
+            height: 15vw; /* Make height proportional to viewport width for consistency */
+            max-height: 90px;
+            font-size: 0.8rem;
+            padding: 2px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Center the content vertically */
+            align-items: center; /* Center the content horizontally */
+            word-break: break-word; /* Force long text to wrap */
+            position: relative;
+        }
+        .calendar-day .day-number {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 0.7rem;
+            color: #6c757d;
+        }
+        .day-calories {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .not-current-month {
+            background-color: #f8f9fa;
+        }
+    }
+</style>
+
 <div class="alert alert-info py-2 px-4 mb-3" role="alert" style="width: 100%; font-size: 1.05em; border-radius: 0;">
     <strong>Tip:</strong> If your monthly plan looks empty, make sure to add recipes to your weekly planner. Monthly plans are generated from your weekly selections!
 </div>
@@ -37,7 +75,7 @@
             <div class="card-body d-flex align-items-center">
                 <div class="row text-center w-100">
                     {% for weekly_summary in weekly_summaries %}
-                    <div class="col">
+                    <div class="col p-1">
                         <strong>Week {{ loop.index }}</strong><br>
                         <h4 class="mb-0 font-weight-normal">{{ (weekly_summary.scheduled.calories|round|int) if weekly_summary.scheduled.calories is not none else 0 }}</h4>
                     </div>
@@ -55,13 +93,13 @@
     <div class="monthly-plan-container">
         <div class="monthly-calendar-grid">
             <!-- Calendar Header -->
-            <div class="calendar-header">Monday</div>
-            <div class="calendar-header">Tuesday</div>
-            <div class="calendar-header">Wednesday</div>
-            <div class="calendar-header">Thursday</div>
-            <div class="calendar-header">Friday</div>
-            <div class="calendar-header">Saturday</div>
-            <div class="calendar-header">Sunday</div>
+            <div class="calendar-header">Mon</div>
+            <div class="calendar-header">Tue</div>
+            <div class="calendar-header">Wed</div>
+            <div class="calendar-header">Thu</div>
+            <div class="calendar-header">Fri</div>
+            <div class="calendar-header">Sat</div>
+            <div class="calendar-header">Sun</div>
 
             <!-- Calendar Days -->
             {% for week in calendar_data %}

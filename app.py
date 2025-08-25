@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_from_directory, session, g
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, func
 from datetime import date, timedelta, datetime
 import os, csv, random, json, io, re, uuid, calendar, time
 from werkzeug.utils import secure_filename
@@ -419,6 +419,16 @@ def index():
     manual_shopping_items = ShoppingListItem.query.filter_by(household_id=current_user.household_id).count()
     items_to_buy_count += manual_shopping_items
 
+    # --- FIX: New query for "Most Made" recipes ---
+    most_made_recipes = db.session.query(
+        Recipe,
+        func.count(MealPlan.recipe_id).label('meal_count')
+    ).join(MealPlan, Recipe.id == MealPlan.recipe_id)\
+    .filter(Recipe.household_id == current_user.household_id)\
+    .group_by(Recipe.id)\
+    .order_by(desc('meal_count'))\
+    .limit(5).all()
+
     kitchen_stats = {
         'total_recipes': Recipe.query.filter_by(household_id=current_user.household_id).count(),
         'pantry_items': PantryItem.query.filter_by(household_id=current_user.household_id).count(),
@@ -481,7 +491,8 @@ def index():
                            todays_meal_plan=todays_meal_plan, 
                            weekly_stats=weekly_stats,
                            monthly_stats=monthly_stats,
-                           kitchen_stats=kitchen_stats)
+                           kitchen_stats=kitchen_stats,
+                           most_made_recipes=most_made_recipes)
 
 
 @app.route('/recipes')
@@ -1164,7 +1175,7 @@ def build_plan_api():
         )
 
         json_structure = (f"Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the month as strings ('1', '2', ..., '{num_days}'). "
-                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'.")
+                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'. If no meal is planned for a slot, use 'id': null and 'name': 'Unplanned'.")
     else: # week
         instruction = (
             f"You must select recipes for Breakfast, Lunch, and Dinner for each of the 7 days (Monday to Sunday). Follow these rules:\n"
@@ -1173,7 +1184,7 @@ def build_plan_api():
             "3. Do not repeat recipes."
         )
         json_structure = ("Your response MUST be ONLY a valid JSON object. The top-level keys are the days of the week ('Monday',..., 'Sunday'). "
-                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'.")
+                          "Each day's value must be another dictionary with keys 'Breakfast', 'Lunch', and 'Dinner'. The value for each meal slot is an object with 'id' and 'name'. If no meal is planned for a slot, use 'id': null and 'name': 'Unplanned'.")
 
     final_prompt = (
         f"You are a Meal Plan Architect. Create a diverse and logical meal plan based on the theme: '{theme}'.\n"
