@@ -765,7 +765,7 @@ def ai_quick_add():
     """
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-pro')
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
@@ -1251,7 +1251,7 @@ def import_and_create_recipe():
         if len(page_text) < 100:
              return jsonify({'error': 'Could not extract enough readable content from the URL.'}), 400
         
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-pro')
         
         recipe_prompt = (f"""
             Analyze the following text from a recipe webpage and extract the recipe details.
@@ -1424,7 +1424,7 @@ def build_plan_api():
     )
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-pro')
         response = model.generate_content(final_prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"))
         plan_data = json.loads(response.text.strip())
 
@@ -1546,7 +1546,7 @@ def generate_from_ingredients_api():
     if not ingredients_text.strip(): return jsonify({'error': 'Please enter some ingredients.'}), 400
     prompt = (f"You are a creative chef with these ingredients: {ingredients_text}. Invent a practical recipe using them. Assume basic staples. Provide a complete recipe: name, ingredient list, and instructions.")
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-pro')
         response = model.generate_content(prompt)
         ai_response = response.text
         
@@ -1574,7 +1574,7 @@ def remix_recipe_api():
               "\"ingredients\" (an array of objects, where each object has \"name\", \"quantity\", and \"unit\").")
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-pro')
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
