@@ -1,41 +1,13 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<!-- THIS STYLE BLOCK IS THE FIX FOR MOBILE VIEW -->
 <style>
-    @media (max-width: 767.98px) {
-        .monthly-calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr); /* Ensure 7 equal columns */
-            min-height: auto; /* Allow the grid to determine its own height */
-        }
-        .calendar-day {
-            min-height: 75px; /* Set a consistent minimum height for all cells */
-            height: 15vw; /* Make height proportional to viewport width for consistency */
-            max-height: 90px;
-            font-size: 0.8rem;
-            padding: 2px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center; /* Center the content vertically */
-            align-items: center; /* Center the content horizontally */
-            word-break: break-word; /* Force long text to wrap */
-            position: relative;
-        }
-        .calendar-day .day-number {
-            position: absolute;
-            top: 2px;
-            left: 4px;
-            font-size: 0.7rem;
-            color: #6c757d;
-        }
-        .day-calories {
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-        .not-current-month {
-            background-color: #f8f9fa;
-        }
+    /* Add a specific class to ensure popover content is styled correctly */
+    .meal-popover-content {
+        font-size: 0.9rem;
+    }
+    .meal-popover-content strong {
+        color: var(--primary-blue);
     }
 </style>
 
@@ -114,13 +86,28 @@
                          data-toggle="popover"
                          data-trigger="focus"
                          title="Meals for {{ day.strftime('%B %d') }}"
-                         data-content="{{ summary.meals|join('<br>') or 'No meals planned.' }}">
+                         data-content="<div class='meal-popover-content'>{% for meal in summary.meals %}{% set parts = meal.split(': ') %}<strong>{{ parts[0] }}:</strong> {{ parts[1] }}<br>{% endfor %}{% if not has_meals %}No meals planned.{% endif %}</div>">
+                        
                         <div class="day-number">{{ day.day }}</div>
-                        <div class="day-calories">
+
+                        <!-- START: CORRECTED MEAL/CALORIE DISPLAY -->
+                        <!-- Desktop View: Shows the list of meals -->
+                        <div class="meals d-none d-md-block">
+                             {% for meal_str in summary.meals %}
+                                {% set meal_parts = meal_str.split(': ', 1) %}
+                                {% set meal_slot = meal_parts[0] %}
+                                {% set meal_name = meal_parts[1] if meal_parts|length > 1 else meal_parts[0] %}
+                                <div class="meal-item meal-type-{{ meal_slot|lower|replace(' ', '-') }}">{{ meal_name }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Mobile View: Shows the total calorie count -->
+                        <div class="day-calories d-md-none">
                             {% if has_meals %}
                                 {{ summary.calories|round|int }} Cal
                             {% endif %}
                         </div>
+                        <!-- END: CORRECTED MEAL/CALORIE DISPLAY -->
                     </div>
                 {% endfor %}
             {% endfor %}

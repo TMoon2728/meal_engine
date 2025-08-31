@@ -20,8 +20,8 @@
 
                 <h5 class="mt-4">Members</h5>
                 <p class="text-muted">
-                    Your household is on the <strong>{{ current_user.household.members[0].subscription_plan|capitalize }}</strong> plan. 
-                    You have <strong>{{ current_user.household.members|length }} / {{ member_limit if member_limit != 'inf' else 'Unlimited' }}</strong> members.
+                    Your household's plan is <strong>{{ current_user.subscription_plan|capitalize }}</strong>. 
+                    You have <strong>{{ current_user.household.members|length }} / {% if member_limit == 'inf' %}Unlimited{% else %}{{ member_limit|int }}{% endif %}</strong> members.
                 </p>
                 <ul class="list-group">
                     {% for member in current_user.household.members %}

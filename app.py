@@ -43,14 +43,12 @@ PLAN_CREDITS = {
     'elite': float('inf')
 }
 
-# --- START: NEW HOUSEHOLD LIMITS LOGIC ---
 HOUSEHOLD_LIMITS = {
     'free': 2,
     'premium': 5,
     'elite': float('inf')
 }
 app.config['HOUSEHOLD_LIMITS'] = HOUSEHOLD_LIMITS
-# --- END: NEW HOUSEHOLD LIMITS LOGIC ---
 
 
 STRIPE_PRICE_IDS = {
@@ -1170,8 +1168,8 @@ def household_page():
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    household_owner = User.query.filter_by(id=current_user.household.members[0].id).first()
-    member_limit = app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
+    # The subscription plan of the current user determines the household limit.
+    member_limit = app.config['HOUSEHOLD_LIMITS'].get(current_user.subscription_plan, 2)
     is_full = len(current_user.household.members) >= member_limit
 
     if request.method == 'POST':
@@ -1179,7 +1177,7 @@ def profile():
 
         if action == 'generate_invite':
             if is_full:
-                return jsonify({'error': 'Your household is full. Please upgrade your plan to add more members.'}), 403
+                return jsonify({'error': f"Your household is full. The '{current_user.subscription_plan}' plan allows for {int(member_limit)} members. Please upgrade to add more."}), 403
             
             HouseholdInvitation.query.filter_by(household_id=current_user.household_id).delete()
             token = str(uuid.uuid4())
@@ -1257,7 +1255,12 @@ def join_household(token):
         return redirect(url_for('profile'))
 
     target_household = invitation.household
-    household_owner = User.query.filter_by(id=target_household.members[0].id).first()
+    if not target_household.members:
+        flash("Cannot join an empty household through an invite.", "danger")
+        return redirect(url_for('profile'))
+
+    # The owner is the first person in the household's member list
+    household_owner = target_household.members[0]
     member_limit = app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
     
     if len(target_household.members) >= member_limit:

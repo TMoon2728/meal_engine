@@ -7,6 +7,9 @@
     .ai-day-header { background-color: #f8f9fa; padding: .5rem; font-weight: 600; text-align: center; border-bottom: 1px solid #dee2e6; }
     .ai-day-body { padding: .5rem; }
     .ai-meal-item { font-size: 0.8rem; padding: 4px; border-radius: 4px; margin-bottom: 4px; background-color: #f1f3f5; }
+    .ai-meal-item h6 { font-size: 0.85rem; margin-bottom: 2px; color: var(--text-dark); font-weight: 600; }
+    .ai-meal-item p { margin-bottom: 0; font-size: 0.8rem; }
+
 
     /* Mobile-specific styles */
     @media (max-width: 767.98px) {
@@ -21,7 +24,7 @@
 </style>
 
 <div class="row">
-    <!-- ===== START: RECIPE TRAY COLUMN (FIX #2) ===== -->
+    <!-- ===== START: RECIPE TRAY COLUMN ===== -->
     <div class="col-md-3 no-print d-none d-md-block">
         <div class="sticky-top" style="top: 1rem;">
             <div class="card mb-3">
@@ -166,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function isMobile() { return window.innerWidth < 768; }
 
-    // --- START: DISPLAY PLAN FUNCTION (FIX #1) ---
+    // --- START: CORRECTED DISPLAY PLAN FUNCTION ---
     function displayPlan(response) {
         originalGeneratedPlan = response;
         const plan = response.plan;
@@ -190,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                     planHtml += `</div>`;
                 });
-            } else { // Month view
+            } else { // Month view for mobile
                 const year = response.year;
                 const month = response.month;
                 const numDays = new Date(year, month, 0).getDate();
@@ -220,18 +223,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     const dayData = plan[day] || {};
                     slots.forEach(slot => {
                         if (dayData[slot]) {
-                            planHtml += `<h6>${slot}</h6><div class="ai-meal-item">${dayData[slot].name}</div>`;
+                            planHtml += `<div class="ai-meal-item"><h6>${slot}</h6><p>${dayData[slot].name}</p></div>`;
                         }
                     });
                     planHtml += `</div></div>`;
                 });
                 planHtml += `</div>`;
-            } else { // Month view
+            } else { // Month view for desktop
                 const year = response.year;
                 const month = response.month;
                 const firstDay = new Date(year, month - 1, 1).getDay();
                 const daysInMonth = new Date(year, month, 0).getDate();
-                const dayOffset = (firstDay === 0) ? 6 : firstDay - 1; // Monday is 0
+                const dayOffset = (firstDay === 0) ? 6 : firstDay - 1;
                 
                 planHtml += `<div class="monthly-calendar-grid">`;
                 ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(d => planHtml += `<div class="calendar-header">${d}</div>`);
@@ -253,9 +256,9 @@ document.addEventListener('DOMContentLoaded', function() {
         planHtml += `</div></div>`;
         resultsContainer.innerHTML = planHtml;
     }
-    // --- END: DISPLAY PLAN FUNCTION ---
+    // --- END: CORRECTED DISPLAY PLAN FUNCTION ---
 
-    // --- START: RECIPE TRAY JAVASCRIPT (FIX #2) ---
+    // --- START: RECIPE TRAY JAVASCRIPT ---
     function renderRecipeTray(recipes) {
         const trayMap = { 'Main Course': 'main-tray', 'Side Dish': 'side-tray', 'Snack': 'snack-tray', 'Meal Prep': 'prep-tray' };
         for (const type in trayMap) {
