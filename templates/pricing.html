@@ -2,33 +2,35 @@
 {% extends 'base.html' %}
 {% block content %}
 <style>
-  /* Custom styles to match the screenshot and ensure alignment */
   .pricing-header {
     max-width: 700px;
   }
+  
+  /* --- START: VISUAL CONSISTENCY FIXES --- */
   .card-deck .card {
-    min-width: 220px;
     display: flex;
     flex-direction: column;
+    height: 100%; /* Make card fill the height of the column */
   }
   .card-deck .card-body {
     display: flex;
     flex-direction: column;
-    flex-grow: 1; /* Allows the body to fill the card's height */
+    flex-grow: 1; /* Allow the body to expand */
   }
   .card-deck .card-body .list-unstyled {
-    flex-grow: 1; /* Pushes the button to the bottom */
+    flex-grow: 1; /* Push the button to the bottom */
   }
+  /* --- END: VISUAL CONSISTENCY FIXES --- */
+
   .card-deck .card-highlight {
     border: 2px solid var(--primary-blue);
-    transform: scale(1.05); /* Makes the recommended plan slightly larger */
+    transform: scale(1.05);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12) !important;
     z-index: 10;
   }
   .card-highlight .btn-primary {
-    background-color: var(--primary-blue); /* Solid blue for the main call-to-action */
+    background-color: var(--primary-blue);
   }
-  /* Style for the "Upgrade to Elite" button to look like a link, as in the screenshot */
   .btn-link-style {
     background: none !important;
     border: none !important;
@@ -47,7 +49,7 @@
 <div class="container py-3">
   <div class="pricing-header p-3 pb-md-4 mx-auto text-center">
     <h1 class="display-4 font-weight-normal">Find Your Perfect Plan</h1>
-    <p class="lead text-muted">Start for free, then upgrade to unlock powerful AI features. Cancel anytime.</p>
+    <p class="lead text-muted">Start for free, then upgrade to unlock powerful AI features and expand your household. Cancel anytime.</p>
   </div>
 
   <div class="card-deck mb-3 text-center">
@@ -62,7 +64,7 @@
         <ul class="list-unstyled mt-3 mb-4">
           <li>Full Recipe & Pantry Management</li>
           <li>Weekly & Monthly Planners</li>
-          <li>Shopping List Generation</li>
+          <li><strong>{{ config['HOUSEHOLD_LIMITS']['free'] }}</strong> Household Members</li>
           <li class="mt-2"><strong>{{ config['PLAN_CREDITS']['free'] }}</strong> AI Credits per month</li>
         </ul>
         
@@ -88,6 +90,7 @@
           <li>Everything in Free, plus:</li>
           <li><strong><i class="fas fa-magic"></i> AI Meal Plan Architect</strong></li>
           <li><strong><i class="fas fa-magic"></i> AI Recipe Remix & Import</strong></li>
+          <li><strong>{{ config['HOUSEHOLD_LIMITS']['premium'] }}</strong> Household Members</li>
           <li class="mt-2"><strong>{{ config['PLAN_CREDITS']['premium'] }}</strong> AI Credits per month</li>
         </ul>
 
@@ -113,6 +116,7 @@
         <ul class="list-unstyled mt-3 mb-4">
           <li>Everything in Premium, plus:</li>
           <li><strong><i class="fas fa-star text-info"></i> Unlimited AI Credits</strong></li>
+          <li><strong><i class="fas fa-users text-info"></i> Unlimited Household Members</strong></li>
           <li><strong><i class="fas fa-headphones text-info"></i> Priority Support</strong></li>
           <li class="mt-2">Early access to new features</li>
         </ul>

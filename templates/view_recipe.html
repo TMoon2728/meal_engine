@@ -78,10 +78,10 @@
   <div class="card bg-light p-3 my-3">
     <h5 class="card-title mb-1">Nutritional Info (per serving)</h5>
     <div class="card-text">
-        <strong>Calories:</strong> {{ recipe.calories|default(0)|round|int }} | 
-        <strong>Protein:</strong> {{ recipe.protein|default(0)|round|int }}g | 
-        <strong>Fat:</strong> {{ recipe.fat|default(0)|round|int }}g | 
-        <strong>Carbs:</strong> {{ recipe.carbs|default(0)|round|int }}g
+        <strong>Calories:</strong> {{ recipe.calories|default(0, true)|round|int }} | 
+        <strong>Protein:</strong> {{ recipe.protein|default(0, true)|round|int }}g | 
+        <strong>Fat:</strong> {{ recipe.fat|default(0, true)|round|int }}g | 
+        <strong>Carbs:</strong> {{ recipe.carbs|default(0, true)|round|int }}g
     </div>
   </div>
   {% endif %}
