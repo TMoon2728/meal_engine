@@ -492,62 +492,42 @@ def create_checkout_session():
         flash(f'Error creating checkout session: {str(e)}', 'danger')
         return redirect(url_for('pricing'))
 
+# --- START: FULLY REVISED WEBHOOK HANDLER ---
 @app.route('/stripe-webhook', methods=['POST'])
 def stripe_webhook():
-    print("\n--- WEBHOOK RECEIVED ---") # Check if the function is being called at all
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
     webhook_secret = app.config['STRIPE_WEBHOOK_SECRET']
     
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, webhook_secret
-        )
-        print(f"--- Event Constructed Successfully: {event['type']} ---") # Check if the signature is valid
-    except ValueError as e:
-        print(f"!!! ERROR: Invalid payload: {e}")
-        return 'Invalid payload', 400
-    except stripe.error.SignatureVerificationError as e:
-        print(f"!!! ERROR: Invalid signature: {e}")
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except (ValueError, stripe.error.SignatureVerificationError) as e:
+        print(f"!!! ERROR: Invalid webhook signature: {e}")
         return 'Invalid signature', 400
 
+    # --- Handle new subscriptions ---
     if event['type'] == 'checkout.session.completed':
-        print("--- Handling checkout.session.completed ---")
         session = event['data']['object']
         customer_id = session.get('customer')
         subscription_id = session.get('subscription')
-        print(f"--- Customer ID: {customer_id}, Subscription ID: {subscription_id} ---")
-
         user = User.query.filter_by(stripe_customer_id=customer_id).first()
         if user:
-            print(f"--- Found user: {user.email} ---")
             subscription = stripe.Subscription.retrieve(subscription_id)
             price_id = subscription['items']['data'][0]['price']['id']
-            print(f"--- Price ID from subscription: {price_id} ---")
+            new_plan = 'free'
+            if price_id == STRIPE_PRICE_IDS['premium']: new_plan = 'premium'
+            elif price_id == STRIPE_PRICE_IDS['elite']: new_plan = 'elite'
             
-            new_plan = 'free' # Default
-            if price_id == STRIPE_PRICE_IDS['premium']:
-                new_plan = 'premium'
-            elif price_id == STRIPE_PRICE_IDS['elite']:
-                new_plan = 'elite'
-            
-            print(f"--- Determined new plan: {new_plan} ---")
-
             user.subscription_plan = new_plan
             user.stripe_subscription_id = subscription_id
             user.ai_credits = PLAN_CREDITS[new_plan]
             db.session.commit()
-            print(f"--- User {user.email} successfully upgraded in database! ---")
-        else:
-            print(f"!!! CRITICAL ERROR: Could not find user with customer ID: {customer_id} ---")
+            print(f"--- User {user.email} successfully subscribed to {new_plan} plan ---")
 
-
+    # --- Handle upgrades, downgrades, and cancellations ---
     if event['type'] in ['customer.subscription.updated', 'customer.subscription.deleted']:
-        print(f"--- Handling {event['type']} ---")
-        # This part of the logic remains the same
         session = event['data']['object']
         subscription_id = session.get('id')
-
         user = User.query.filter_by(stripe_subscription_id=subscription_id).first()
         if user:
             if session.get('cancel_at_period_end') or event['type'] == 'customer.subscription.deleted':
@@ -555,47 +535,79 @@ def stripe_webhook():
                 user.stripe_subscription_id = None
                 user.ai_credits = PLAN_CREDITS['free']
                 db.session.commit()
-                print(f"--- User {user.email}'s subscription was cancelled. Downgraded to free. ---")
+                print(f"--- User {user.email}'s subscription cancelled. Downgraded to free. ---")
             else:
                 price_id = session['items']['data'][0]['price']['id']
                 new_plan = 'free'
-                if price_id == STRIPE_PRICE_IDS['premium']:
-                    new_plan = 'premium'
-                elif price_id == STRIPE_PRICE_IDS['elite']:
-                    new_plan = 'elite'
+                if price_id == STRIPE_PRICE_IDS['premium']: new_plan = 'premium'
+                elif price_id == STRIPE_PRICE_IDS['elite']: new_plan = 'elite'
                 
                 if user.subscription_plan != new_plan:
                     user.subscription_plan = new_plan
                     user.ai_credits = PLAN_CREDITS[new_plan]
                     db.session.commit()
                     print(f"--- User {user.email} plan updated to {new_plan}. ---")
-        else:
-            print(f"!!! WARNING: Received subscription update for unknown subscription ID: {subscription_id} ---")
 
+    # --- Handle monthly credit resets ---
+    if event['type'] == 'invoice.payment_succeeded':
+        invoice = event['data']['object']
+        customer_id = invoice.get('customer')
+        user = User.query.filter_by(stripe_customer_id=customer_id).first()
+        if user and user.subscription_plan in PLAN_CREDITS:
+            user.ai_credits = PLAN_CREDITS[user.subscription_plan]
+            db.session.commit()
+            print(f"--- AI credits for {user.email} have been reset for the new billing cycle. ---")
 
     return 'Success', 200
+# --- END: FULLY REVISED WEBHOOK HANDLER ---
 
+# --- START: REVISED BILLING PORTAL WITH SELF-HEALING SYNC ---
 @app.route('/create-billing-portal-session', methods=['POST'])
 @login_required
 def create_billing_portal_session():
-    """
-    Creates and redirects to a Stripe Billing Portal session.
-    """
-    if not current_user.stripe_customer_id:
+    if not current_user.stripe_customer_id or not current_user.stripe_subscription_id:
         flash('No billing information found for your account.', 'warning')
         return redirect(url_for('profile'))
 
-    return_url = url_for('profile', _external=True)
-    
     try:
+        # --- Self-Healing Logic: Sync with Stripe before redirecting ---
+        subscription = stripe.Subscription.retrieve(current_user.stripe_subscription_id)
+        price_id = subscription['items']['data'][0]['price']['id']
+        
+        correct_plan = 'free'
+        if price_id == STRIPE_PRICE_IDS['premium']: correct_plan = 'premium'
+        elif price_id == STRIPE_PRICE_IDS['elite']: correct_plan = 'elite'
+        
+        # Check for and fix any inconsistencies
+        if current_user.subscription_plan != correct_plan:
+            current_user.subscription_plan = correct_plan
+            current_user.ai_credits = PLAN_CREDITS[correct_plan]
+            db.session.commit()
+            flash('Your plan information was out of sync and has been corrected.', 'info')
+            print(f"Corrected plan for {current_user.email} to {correct_plan}.")
+
+        # --- Proceed to create the portal session ---
+        return_url = url_for('profile', _external=True)
         portal_session = stripe.billing_portal.Session.create(
             customer=current_user.stripe_customer_id,
             return_url=return_url
         )
         return redirect(portal_session.url, code=303)
+
+    except stripe.error.InvalidRequestError as e:
+        # This catches the "No such subscription" error
+        print(f"Stale subscription ID detected for user {current_user.email}. Error: {e}")
+        # Heal the user's account by reverting them to the free plan
+        current_user.subscription_plan = 'free'
+        current_user.stripe_subscription_id = None
+        current_user.ai_credits = PLAN_CREDITS['free']
+        db.session.commit()
+        flash('Your subscription data was out of sync and has been reset. Please upgrade your plan again.', 'warning')
+        return redirect(url_for('pricing'))
     except Exception as e:
-        flash(f"Error accessing billing portal: {str(e)}", "danger")
+        flash(f"An unexpected error occurred: {str(e)}", "danger")
         return redirect(url_for('profile'))
+# --- END: REVISED BILLING PORTAL ---
 
 @app.route('/')
 def index():
