@@ -40,7 +40,7 @@ stripe.api_key = app.config['STRIPE_SECRET_KEY']
 PLAN_CREDITS = {
     'free': 5,
     'premium': 50,
-    'elite': float('inf')
+    'elite': -1  # Use -1 to represent unlimited
 }
 
 HOUSEHOLD_LIMITS = {
@@ -442,21 +442,23 @@ def reset_password(token):
 def pricing():
     return render_template('pricing.html', stripe_price_ids=STRIPE_PRICE_IDS)
 
-# --- START: FULLY REVISED CHECKOUT SESSION FUNCTION ---
 @app.route('/create-checkout-session', methods=['POST'])
 @login_required
 def create_checkout_session():
+    if current_user.stripe_subscription_id:
+        flash("You already have an active subscription. Please manage it from your profile.", "info")
+        return redirect(url_for('profile'))
+
     price_id = request.form.get('price_id')
     
     try:
         customer_id = current_user.stripe_customer_id
         
-        # Self-healing logic for customer ID
         if customer_id:
             try:
                 stripe.Customer.retrieve(customer_id)
             except stripe.error.InvalidRequestError:
-                print(f"Stale Stripe customer ID '{customer_id}' detected. Clearing and creating a new one.")
+                print(f"Stale Stripe customer ID '{customer_id}' detected. Clearing.")
                 customer_id = None
                 current_user.stripe_customer_id = None
                 db.session.commit()
@@ -469,7 +471,7 @@ def create_checkout_session():
             customer_id = customer.id
             current_user.stripe_customer_id = customer_id
             db.session.commit()
-            print(f"Created and saved new Stripe customer ID: {customer_id}")
+            print(f"Created new Stripe customer ID: {customer_id}")
 
         checkout_session = stripe.checkout.Session.create(
             customer=customer_id,
@@ -485,38 +487,32 @@ def create_checkout_session():
     except Exception as e:
         flash(f'Error creating checkout session: {str(e)}', 'danger')
         return redirect(url_for('pricing'))
-# --- END: FULLY REVISED CHECKOUT SESSION FUNCTION ---
 
-# --- START: NEW HELPER FUNCTION FOR WEBHOOKS ---
 def _update_user_subscription(user, subscription):
     price_id = subscription['items']['data'][0]['price']['id']
     
-    # Robust logging for easier debugging
-    print("--- Subscription Update Details ---")
-    print(f"User: {user.email}")
+    print("\n--- Attempting to update user subscription ---")
+    print(f"User: {user.email} (ID: {user.id})")
     print(f"Stripe Subscription ID: {subscription.id}")
-    print(f"Received Price ID: {price_id}")
+    print(f"Received Price ID from Stripe: {price_id}")
     print(f"Expected Premium Price ID: {STRIPE_PRICE_IDS.get('premium')}")
     print(f"Expected Elite Price ID: {STRIPE_PRICE_IDS.get('elite')}")
-    # ---
 
-    new_plan = 'free' # Default to free
-    if price_id == STRIPE_PRICE_IDS['premium']:
+    new_plan = 'free'
+    if price_id == STRIPE_PRICE_IDS.get('premium'):
         new_plan = 'premium'
-    elif price_id == STRIPE_PRICE_IDS['elite']:
+    elif price_id == STRIPE_PRICE_IDS.get('elite'):
         new_plan = 'elite'
     else:
-        print(f"!!! WARNING: Price ID {price_id} does not match any known plan IDs.")
+        print(f"!!! CRITICAL WARNING: Price ID '{price_id}' does not match any known plan IDs. User will be set to 'free'.")
 
     user.subscription_plan = new_plan
     user.stripe_subscription_id = subscription.id
     user.stripe_customer_id = subscription.customer
     user.ai_credits = PLAN_CREDITS[new_plan]
     db.session.commit()
-    print(f"--- User {user.email} successfully updated to {new_plan} plan ---")
-# --- END: NEW HELPER FUNCTION ---
+    print(f"--- User {user.email} successfully updated to '{new_plan}' plan in database. ---")
 
-# --- START: FULLY REVISED WEBHOOK HANDLER ---
 @app.route('/stripe-webhook', methods=['POST'])
 def stripe_webhook():
     payload = request.get_data(as_text=True)
@@ -534,41 +530,42 @@ def stripe_webhook():
         user_id = session.get('client_reference_id')
         
         if user_id:
-            user = db.session.get(User, int(user_id))
-            if user:
-                subscription = stripe.Subscription.retrieve(session.get('subscription'))
-                _update_user_subscription(user, subscription)
-            else:
-                print(f"!!! CRITICAL ERROR: Webhook user ID {user_id} not found in database.")
+            with app.app_context():
+                user = db.session.get(User, int(user_id))
+                if user:
+                    subscription = stripe.Subscription.retrieve(session.get('subscription'))
+                    _update_user_subscription(user, subscription)
+                else:
+                    print(f"!!! CRITICAL ERROR: Webhook user ID {user_id} not found in database.")
         else:
             print("!!! CRITICAL ERROR: Webhook received without client_reference_id.")
 
     if event['type'] in ['customer.subscription.updated', 'customer.subscription.deleted']:
-        subscription = event['data']['object']
-        user = User.query.filter_by(stripe_subscription_id=subscription.id).first()
-        if user:
-            if subscription.get('cancel_at_period_end') or event['type'] == 'customer.subscription.deleted':
-                user.subscription_plan = 'free'
-                user.stripe_subscription_id = None
-                user.ai_credits = PLAN_CREDITS['free']
-                db.session.commit()
-                print(f"--- User {user.email}'s subscription cancelled. Downgraded to free. ---")
-            else:
-                _update_user_subscription(user, subscription)
+        with app.app_context():
+            subscription = event['data']['object']
+            user = User.query.filter_by(stripe_subscription_id=subscription.id).first()
+            if user:
+                if subscription.get('cancel_at_period_end') or event['type'] == 'customer.subscription.deleted':
+                    user.subscription_plan = 'free'
+                    user.stripe_subscription_id = None
+                    user.ai_credits = PLAN_CREDITS['free']
+                    db.session.commit()
+                    print(f"--- User {user.email}'s subscription cancelled. Downgraded to free. ---")
+                else:
+                    _update_user_subscription(user, subscription)
 
     if event['type'] == 'invoice.payment_succeeded':
-        invoice = event['data']['object']
-        customer_id = invoice.get('customer')
-        user = User.query.filter_by(stripe_customer_id=customer_id).first()
-        if user and user.subscription_plan in PLAN_CREDITS:
-            user.ai_credits = PLAN_CREDITS[user.subscription_plan]
-            db.session.commit()
-            print(f"--- AI credits for {user.email} have been reset for the new billing cycle. ---")
+        with app.app_context():
+            invoice = event['data']['object']
+            customer_id = invoice.get('customer')
+            user = User.query.filter_by(stripe_customer_id=customer_id).first()
+            if user and user.subscription_plan in PLAN_CREDITS:
+                user.ai_credits = PLAN_CREDITS[user.subscription_plan]
+                db.session.commit()
+                print(f"--- AI credits for {user.email} have been reset for the new billing cycle. ---")
 
     return 'Success', 200
-# --- END: FULLY REVISED WEBHOOK HANDLER ---
 
-# --- START: REVISED BILLING PORTAL WITH SELF-HEALING SYNC ---
 @app.route('/create-billing-portal-session', methods=['POST'])
 @login_required
 def create_billing_portal_session():
@@ -609,7 +606,6 @@ def create_billing_portal_session():
     except Exception as e:
         flash(f"An unexpected error occurred: {str(e)}", "danger")
         return redirect(url_for('profile'))
-# --- END: REVISED BILLING PORTAL ---
 
 @app.route('/')
 def index():
