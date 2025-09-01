@@ -442,8 +442,7 @@ def reset_password(token):
 def pricing():
     return render_template('pricing.html', stripe_price_ids=STRIPE_PRICE_IDS)
 
-# DELETE your old create_checkout_session function and REPLACE it with this one:
-
+# --- START: FULLY REVISED CHECKOUT SESSION FUNCTION ---
 @app.route('/create-checkout-session', methods=['POST'])
 @login_required
 def create_checkout_session():
@@ -452,21 +451,16 @@ def create_checkout_session():
     try:
         customer_id = current_user.stripe_customer_id
         
-        # --- START: NEW SELF-HEALING LOGIC ---
-        # If a customer ID exists, we must verify it's valid for the current mode (test/live).
+        # Self-healing logic for customer ID
         if customer_id:
             try:
                 stripe.Customer.retrieve(customer_id)
-            except stripe.error.InvalidRequestError as e:
-                # This error means the customer ID is from the wrong mode (e.g., a 'live' ID in 'test' mode).
-                # We will treat it as stale and create a new one.
+            except stripe.error.InvalidRequestError:
                 print(f"Stale Stripe customer ID '{customer_id}' detected. Clearing and creating a new one.")
-                customer_id = None # Clear the invalid ID
+                customer_id = None
                 current_user.stripe_customer_id = None
                 db.session.commit()
-        # --- END: NEW SELF-HEALING LOGIC ---
 
-        # If there is no valid customer ID, create a new one.
         if not customer_id:
             customer = stripe.Customer.create(
                 email=current_user.email,
@@ -477,7 +471,6 @@ def create_checkout_session():
             db.session.commit()
             print(f"Created and saved new Stripe customer ID: {customer_id}")
 
-        # By this point, customer_id is guaranteed to be valid for the current mode.
         checkout_session = stripe.checkout.Session.create(
             customer=customer_id,
             line_items=[{'price': price_id, 'quantity': 1}],
@@ -491,6 +484,7 @@ def create_checkout_session():
     except Exception as e:
         flash(f'Error creating checkout session: {str(e)}', 'danger')
         return redirect(url_for('pricing'))
+# --- END: FULLY REVISED CHECKOUT SESSION FUNCTION ---
 
 # --- START: FULLY REVISED WEBHOOK HANDLER ---
 @app.route('/stripe-webhook', methods=['POST'])
@@ -1170,7 +1164,6 @@ def ai_architect():
     }
 
     return render_template('ai_architect.html', today=today, start_of_week=start_of_week, calendar=calendar, recipes_for_js=recipes_for_js)
-
 @app.route('/household', methods=['GET'])
 @login_required
 def household_page():
@@ -1180,8 +1173,9 @@ def household_page():
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    # The subscription plan of the current user determines the household limit.
-    member_limit = app.config['HOUSEHOLD_LIMITS'].get(current_user.subscription_plan, 2)
+    # The subscription plan of the household's first member (owner) determines the limit.
+    household_owner = current_user.household.members[0]
+    member_limit = app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
     is_full = len(current_user.household.members) >= member_limit
 
     if request.method == 'POST':
@@ -1189,7 +1183,7 @@ def profile():
 
         if action == 'generate_invite':
             if is_full:
-                return jsonify({'error': f"Your household is full. The '{current_user.subscription_plan}' plan allows for {int(member_limit)} members. Please upgrade to add more."}), 403
+                return jsonify({'error': f"Your household is full. The '{household_owner.subscription_plan}' plan allows for {int(member_limit)} members. The household owner needs to upgrade to add more."}), 403
             
             HouseholdInvitation.query.filter_by(household_id=current_user.household_id).delete()
             token = str(uuid.uuid4())
@@ -1308,7 +1302,6 @@ def import_and_create_recipe():
 
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Smarter content extraction
         content_selectors = ['article', 'main', '.recipe', '#recipe', '[class*="recipe-"]', '[id*="recipe-"]']
         main_content = None
         for selector in content_selectors:
@@ -1335,7 +1328,7 @@ def import_and_create_recipe():
         """)
         
         recipe_response = model.generate_content(
-            [recipe_prompt, page_text[:30000]], # Truncate to stay within token limits
+            [recipe_prompt, page_text[:30000]],
             generation_config=genai.types.GenerationConfig(response_mime_type="application/json")
         )
         
@@ -1347,7 +1340,6 @@ def import_and_create_recipe():
         if not all(k in recipe_data for k in ['name', 'instructions', 'ingredients']):
             return jsonify({'error': 'The AI could not understand the recipe from that URL. It might work better with a different recipe site.'}), 400
         
-        # Nutrition Estimation
         ingredient_list_for_nutrition = ", ".join([f"{ing.get('quantity', '')} {ing.get('unit', '')} {ing.get('name', '')}" for ing in recipe_data['ingredients']])
         nutrition_prompt = f"""
             Analyze the following ingredient list and estimate the nutritional information PER SERVING.
