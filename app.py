@@ -473,6 +473,9 @@ def create_checkout_session():
 
         checkout_session = stripe.checkout.Session.create(
             customer=customer_id,
+            # --- START: ADD client_reference_id ---
+            client_reference_id=current_user.id,
+            # --- END: ADD client_reference_id ---
             line_items=[{'price': price_id, 'quantity': 1}],
             mode='subscription',
             success_url=url_for('index', _external=True) + '?session_id={CHECKOUT_SESSION_ID}',
@@ -499,26 +502,37 @@ def stripe_webhook():
         print(f"!!! ERROR: Invalid webhook signature: {e}")
         return 'Invalid signature', 400
 
-    # --- Handle new subscriptions ---
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
+        
+        # --- START: REVISED WEBHOOK LOGIC ---
+        user_id = session.get('client_reference_id')
+        if not user_id:
+            print("!!! CRITICAL ERROR: Webhook received without a client_reference_id.")
+            return 'Error', 500
+        
+        user = db.session.get(User, int(user_id))
+        if not user:
+            print(f"!!! CRITICAL ERROR: Could not find user with ID: {user_id}")
+            return 'Error', 500
+        # --- END: REVISED WEBHOOK LOGIC ---
+
         customer_id = session.get('customer')
         subscription_id = session.get('subscription')
-        user = User.query.filter_by(stripe_customer_id=customer_id).first()
-        if user:
-            subscription = stripe.Subscription.retrieve(subscription_id)
-            price_id = subscription['items']['data'][0]['price']['id']
-            new_plan = 'free'
-            if price_id == STRIPE_PRICE_IDS['premium']: new_plan = 'premium'
-            elif price_id == STRIPE_PRICE_IDS['elite']: new_plan = 'elite'
-            
-            user.subscription_plan = new_plan
-            user.stripe_subscription_id = subscription_id
-            user.ai_credits = PLAN_CREDITS[new_plan]
-            db.session.commit()
-            print(f"--- User {user.email} successfully subscribed to {new_plan} plan ---")
+        
+        subscription = stripe.Subscription.retrieve(subscription_id)
+        price_id = subscription['items']['data'][0]['price']['id']
+        new_plan = 'free'
+        if price_id == STRIPE_PRICE_IDS['premium']: new_plan = 'premium'
+        elif price_id == STRIPE_PRICE_IDS['elite']: new_plan = 'elite'
+        
+        user.subscription_plan = new_plan
+        user.stripe_customer_id = customer_id # Now we can safely save this
+        user.stripe_subscription_id = subscription_id
+        user.ai_credits = PLAN_CREDITS[new_plan]
+        db.session.commit()
+        print(f"--- User {user.email} successfully subscribed to {new_plan} plan ---")
 
-    # --- Handle upgrades, downgrades, and cancellations ---
     if event['type'] in ['customer.subscription.updated', 'customer.subscription.deleted']:
         session = event['data']['object']
         subscription_id = session.get('id')
@@ -542,7 +556,6 @@ def stripe_webhook():
                     db.session.commit()
                     print(f"--- User {user.email} plan updated to {new_plan}. ---")
 
-    # --- Handle monthly credit resets ---
     if event['type'] == 'invoice.payment_succeeded':
         invoice = event['data']['object']
         customer_id = invoice.get('customer')
@@ -564,7 +577,6 @@ def create_billing_portal_session():
         return redirect(url_for('profile'))
 
     try:
-        # --- Self-Healing Logic: Sync with Stripe before redirecting ---
         subscription = stripe.Subscription.retrieve(current_user.stripe_subscription_id)
         price_id = subscription['items']['data'][0]['price']['id']
         
@@ -572,7 +584,6 @@ def create_billing_portal_session():
         if price_id == STRIPE_PRICE_IDS['premium']: correct_plan = 'premium'
         elif price_id == STRIPE_PRICE_IDS['elite']: correct_plan = 'elite'
         
-        # Check for and fix any inconsistencies
         if current_user.subscription_plan != correct_plan:
             current_user.subscription_plan = correct_plan
             current_user.ai_credits = PLAN_CREDITS[correct_plan]
@@ -580,7 +591,6 @@ def create_billing_portal_session():
             flash('Your plan information was out of sync and has been corrected.', 'info')
             print(f"Corrected plan for {current_user.email} to {correct_plan}.")
 
-        # --- Proceed to create the portal session ---
         return_url = url_for('profile', _external=True)
         portal_session = stripe.billing_portal.Session.create(
             customer=current_user.stripe_customer_id,
@@ -589,9 +599,7 @@ def create_billing_portal_session():
         return redirect(portal_session.url, code=303)
 
     except stripe.error.InvalidRequestError as e:
-        # This catches the "No such subscription" error
         print(f"Stale subscription ID detected for user {current_user.email}. Error: {e}")
-        # Heal the user's account by reverting them to the free plan
         current_user.subscription_plan = 'free'
         current_user.stripe_subscription_id = None
         current_user.ai_credits = PLAN_CREDITS['free']
@@ -1164,16 +1172,15 @@ def ai_architect():
     }
 
     return render_template('ai_architect.html', today=today, start_of_week=start_of_week, calendar=calendar, recipes_for_js=recipes_for_js)
+
 @app.route('/household', methods=['GET'])
 @login_required
 def household_page():
     return redirect(url_for('profile'))
 
-# --- START: FULLY REVISED PROFILE ROUTE ---
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    # The subscription plan of the household's first member (owner) determines the limit.
     household_owner = current_user.household.members[0]
     member_limit = app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
     is_full = len(current_user.household.members) >= member_limit
@@ -1231,7 +1238,6 @@ def profile():
             
             member_to_remove = User.query.get(member_id)
             if member_to_remove and member_to_remove.household_id == current_user.household_id:
-                # Create a new, personal household for the removed user
                 new_household = Household(name=f"{member_to_remove.email.split('@')[0]}'s Household")
                 db.session.add(new_household)
                 db.session.flush()
@@ -1244,9 +1250,7 @@ def profile():
 
     stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
     return render_template('profile.html', stores=stores, member_limit=member_limit, is_full=is_full)
-# --- END: FULLY REVISED PROFILE ROUTE ---
 
-# --- START: REVISED JOIN HOUSEHOLD ROUTE ---
 @app.route('/join-household/<token>')
 @login_required
 def join_household(token):
@@ -1265,7 +1269,6 @@ def join_household(token):
         flash("Cannot join an empty household through an invite.", "danger")
         return redirect(url_for('profile'))
 
-    # The owner is the first person in the household's member list
     household_owner = target_household.members[0]
     member_limit = app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
     
@@ -1283,9 +1286,7 @@ def join_household(token):
 
     flash(f'You have successfully joined the "{invitation.household.name}" household!', 'success')
     return redirect(url_for('profile'))
-# --- END: REVISED JOIN HOUSEHOLD ROUTE ---
 
-# --- START: FULLY REVISED AND ROBUST IMPORT FUNCTION ---
 @app.route('/api/import-and-create-recipe', methods=['POST'])
 @login_required
 @require_ai_credits
@@ -1400,8 +1401,6 @@ def import_and_create_recipe():
         db.session.rollback()
         print(f"Error during import: {e}")
         return jsonify({'error': 'An unexpected error occurred. The recipe format on the page may be too complex.'}), 500
-# --- END: FULLY REVISED AND ROBUST IMPORT FUNCTION ---
-
 
 @app.route('/api/build-plan', methods=['POST'])
 @login_required
@@ -1998,7 +1997,6 @@ def meal_plan():
         if day_str in planned_meals and meal.meal_slot in planned_meals[day_str]:
             planned_meals[day_str][meal.meal_slot].append(meal)
 
-    # --- START: UNIFIED AND ROBUST RECIPE CATEGORIZATION LOGIC ---
     TRAY_CATEGORY_MAP = {
         'Main Course': 'Main Course', 'Dinner': 'Main Course',
         'Side Dish': 'Side Dish', 'Dessert': 'Dessert',
@@ -2027,7 +2025,6 @@ def meal_plan():
         tray_category = TRAY_CATEGORY_MAP.get(normalized_meal_type, 'Main Course')
         if tray_category in initial_tray_recipes_js:
             initial_tray_recipes_js[tray_category].append({'id': r.id, 'name': r.name, 'meal_type': r.meal_type})
-    # --- END: UNIFIED AND ROBUST RECIPE CATEGORIZATION LOGIC ---
 
     historical_plans = HistoricalPlan.query.filter_by(household_id=current_user.household_id).order_by(HistoricalPlan.name).all()
     
