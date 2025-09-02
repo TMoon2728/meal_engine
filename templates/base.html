@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly_plan.css') }}?v={{ cache_buster }}">
     
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo/icon.png') }}">
     <meta name="theme-color" content="#3a7bd5"/>
     
     <title>Meal Engine</title>
@@ -59,7 +60,9 @@
   <body class="{{ page_class or '' }}">
     <nav class="navbar navbar-expand-lg navbar-dark no-print">
       <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('index') }}">Meal Engine</a>
+        <a class="navbar-brand" href="{{ url_for('main.index') }}">
+            <img src="{{ url_for('static', filename='images/logo/logo.png') }}" height="35" class="d-inline-block align-top" alt="Meal Engine Logo">
+        </a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -69,24 +72,23 @@
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" id="plannerDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Planner</a>
                 <div class="dropdown-menu" aria-labelledby="plannerDropdown">
-                    <a class="dropdown-item" href="{{ url_for('meal_plan') }}">Weekly Plan</a>
-                    <a class="dropdown-item" href="{{ url_for('monthly_plan') }}">Monthly Plan</a>
-                  <a class="dropdown-item" href="{{ url_for('ai_architect') }}">AI Architect</a>
+                    <a class="dropdown-item" href="{{ url_for('main.meal_plan') }}">Weekly Plan</a>
+                    <a class="dropdown-item" href="{{ url_for('main.monthly_plan') }}">Monthly Plan</a>
+                  <a class="dropdown-item" href="{{ url_for('main.ai_architect') }}">AI Architect</a>
                 </div>
               </li>
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" id="kitchenDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">My Kitchen</a>
                 <div class="dropdown-menu" aria-labelledby="kitchenDropdown">
-                  <a class="dropdown-item" href="{{ url_for('list_recipes') }}">Recipes</a>
-                  <a class="dropdown-item" href="{{ url_for('saved_meals') }}">Saved Meals</a>
-                  <a class="dropdown-item" href="{{ url_for('list_ingredients') }}">Pantry</a>
+                  <a class="dropdown-item" href="{{ url_for('main.list_recipes') }}">Recipes</a>
+                  <a class="dropdown-item" href="{{ url_for('main.saved_meals') }}">Saved Meals</a>
+                  <a class="dropdown-item" href="{{ url_for('main.list_ingredients') }}">Pantry</a>
                 </div>
               </li>
-              <li class="nav-item"><a class="nav-link" href="{{ url_for('shopping_list') }}">Shopping List</a></li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('main.shopping_list') }}">Shopping List</a></li>
             {% endif %}
           </ul>
           
-          <!-- ===== START: UPDATED NAVBAR SECTION ===== -->
           <ul class="navbar-nav">
               {% if current_user.is_authenticated %}
                   <li class="nav-item dropdown">
@@ -95,26 +97,28 @@
                     </a>
                     <div class="dropdown-menu dropdown-menu-right" aria-labelledby="accountDropdown">
                       
-                      <a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user-edit"></i> Profile</a>
+                      <a class="dropdown-item" href="{{ url_for('main.profile') }}"><i class="fas fa-user-edit"></i> Profile</a>
 
                       {% if current_user.subscription_plan != 'elite' %}
-                        <a class="dropdown-item" href="{{ url_for('pricing') }}"><i class="fas fa-arrow-alt-circle-up"></i> Upgrade Plan</a>
+                        <a class="dropdown-item" href="{{ url_for('billing.pricing') }}"><i class="fas fa-arrow-alt-circle-up"></i> Upgrade Plan</a>
                       {% endif %}
                       
-                      {% if current_user.is_premium_or_elite %}
+                      {# --- START: MANAGE BILLING BUTTON COMMENTED OUT --- #}
+                      {# {% if current_user.is_premium_or_elite %}
                         <div class="dropdown-item-form">
-                            <form action="{{ url_for('create_billing_portal_session') }}" method="POST">
+                            <form action="{{ url_for('billing.create_billing_portal_session') }}" method="POST">
                                 <button type="submit" class="dropdown-item-button"><i class="fas fa-credit-card"></i> Manage Billing</button>
                             </form>
                         </div>
-                      {% endif %}
+                      {% endif %} #}
+                      {# --- END: MANAGE BILLING BUTTON COMMENTED OUT --- #}
 
                       <div class="dropdown-divider"></div>
                       
                       <div class="px-3 py-2">
                         <h6 class="dropdown-header p-0 mb-1">AI Credits</h6>
                         <div class="text-muted">
-                          {% if current_user.subscription_plan == 'elite' %}
+                          {% if current_user.subscription_plan == 'elite' or current_user.ai_credits == -1 %}
                             <strong>Unlimited</strong> <i class="fas fa-infinity"></i>
                           {% else %}
                             <strong>{{ current_user.ai_credits }}</strong> / {{ config['PLAN_CREDITS'][current_user.subscription_plan] }} remaining
@@ -124,16 +128,15 @@
 
                       <div class="dropdown-divider"></div>
 
-                      <a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                      <a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 
                     </div>
                   </li>
               {% else %}
-                  <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
-                  <li class="nav-item"><a class="nav-link btn btn-primary ml-2" href="{{ url_for('signup') }}">Sign Up</a></li>
+                  <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Login</a></li>
+                  <li class="nav-item"><a class="nav-link btn btn-primary ml-2" href="{{ url_for('auth.signup') }}">Sign Up</a></li>
               {% endif %}
           </ul>
-          <!-- ===== END: UPDATED NAVBAR SECTION ===== -->
 
         </div>
       </div>
