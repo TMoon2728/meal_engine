@@ -24,14 +24,14 @@ import stripe
 import requests
 from bs4 import BeautifulSoup
 import stripe
-from flask_migrate import Migrate # <<< ADD THIS LINE
+from flask_migrate import Migrate 
 
 load_dotenv()
 app = Flask(__name__)
 
 app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 
-app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a_default_secret_key_for_development')
 
 app.config['STRIPE_SECRET_KEY'] = os.getenv('STRIPE_SECRET_KEY')
 app.config['STRIPE_WEBHOOK_SECRET'] = os.getenv('STRIPE_WEBHOOK_SECRET')
@@ -636,6 +636,7 @@ def index():
     ).all()
     required = {}
     for meal in planned_meals_for_shopping:
+        if not meal.recipe: continue
         for item in meal.recipe.ingredients:
             if not item.quantity or item.quantity == 0: continue
             required[item.ingredient.id] = required.get(item.ingredient.id, 0) + item.quantity
@@ -659,8 +660,8 @@ def index():
     .limit(5).all()
 
     kitchen_stats = {
-        'total_recipes': Recipe.query.filter_by(household_id=current_user.household_id).count(),
-        'pantry_items': PantryItem.query.filter_by(household_id=current_user.household_id).count(),
+        'total_recipes': len(all_user_recipes),
+        'pantry_items': len(pantry_items_in_stock),
         'favorite_recipes': Recipe.query.filter_by(household_id=current_user.household_id, is_favorite=True).count(),
         'recipes_can_make': recipes_can_make_count,
         'items_to_buy': items_to_buy_count
@@ -689,13 +690,13 @@ def index():
         'consumed': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
     }
     for meal in weekly_planned_meals:
-        if meal.recipe:
-            weekly_stats['scheduled']['calories'] += meal.recipe.calories or 0
+        if meal.recipe and meal.recipe.calories:
+            weekly_stats['scheduled']['calories'] += meal.recipe.calories
             weekly_stats['scheduled']['protein'] += meal.recipe.protein or 0
             weekly_stats['scheduled']['fat'] += meal.recipe.fat or 0
             weekly_stats['scheduled']['carbs'] += meal.recipe.carbs or 0
             if meal.is_eaten:
-                weekly_stats['consumed']['calories'] += meal.recipe.calories or 0
+                weekly_stats['consumed']['calories'] += meal.recipe.calories
                 weekly_stats['consumed']['protein'] += meal.recipe.protein or 0
                 weekly_stats['consumed']['fat'] += meal.recipe.fat or 0
                 weekly_stats['consumed']['carbs'] += meal.recipe.carbs or 0
@@ -705,13 +706,13 @@ def index():
         'consumed': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
     }
     for meal in monthly_planned_meals:
-        if meal.recipe:
-            monthly_stats['scheduled']['calories'] += meal.recipe.calories or 0
+        if meal.recipe and meal.recipe.calories:
+            monthly_stats['scheduled']['calories'] += meal.recipe.calories
             monthly_stats['scheduled']['protein'] += meal.recipe.protein or 0
             monthly_stats['scheduled']['fat'] += meal.recipe.fat or 0
             monthly_stats['scheduled']['carbs'] += meal.recipe.carbs or 0
             if meal.is_eaten:
-                monthly_stats['consumed']['calories'] += meal.recipe.calories or 0
+                monthly_stats['consumed']['calories'] += meal.recipe.calories
                 monthly_stats['consumed']['protein'] += meal.recipe.protein or 0
                 monthly_stats['consumed']['fat'] += meal.recipe.fat or 0
                 monthly_stats['consumed']['carbs'] += meal.recipe.carbs or 0
@@ -1118,25 +1119,26 @@ def monthly_plan():
         'consumed': {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
     }
     for meal in all_meals_this_month:
-        monthly_stats['scheduled']['calories'] += meal.recipe.calories or 0
-        monthly_stats['scheduled']['protein'] += meal.recipe.protein or 0
-        monthly_stats['scheduled']['fat'] += meal.recipe.fat or 0
-        monthly_stats['scheduled']['carbs'] += meal.recipe.carbs or 0
-        if meal.is_eaten:
-            monthly_stats['consumed']['calories'] += meal.recipe.calories or 0
-            monthly_stats['consumed']['protein'] += meal.recipe.protein or 0
-            monthly_stats['consumed']['fat'] += meal.recipe.fat or 0
-            monthly_stats['consumed']['carbs'] += meal.recipe.carbs or 0
+        if meal.recipe and meal.recipe.calories:
+            monthly_stats['scheduled']['calories'] += meal.recipe.calories
+            monthly_stats['scheduled']['protein'] += meal.recipe.protein or 0
+            monthly_stats['scheduled']['fat'] += meal.recipe.fat or 0
+            monthly_stats['scheduled']['carbs'] += meal.recipe.carbs or 0
+            if meal.is_eaten:
+                monthly_stats['consumed']['calories'] += meal.recipe.calories
+                monthly_stats['consumed']['protein'] += meal.recipe.protein or 0
+                monthly_stats['consumed']['fat'] += meal.recipe.fat or 0
+                monthly_stats['consumed']['carbs'] += meal.recipe.carbs or 0
             
     weekly_summaries = []
     for week in month_days:
         week_stats = {'scheduled': {'calories': 0}, 'consumed': {'calories': 0}}
         for day in week:
             for meal in all_meals_in_view:
-                if meal.meal_date == day and meal.recipe:
-                    week_stats['scheduled']['calories'] += meal.recipe.calories or 0
+                if meal.meal_date == day and meal.recipe and meal.recipe.calories:
+                    week_stats['scheduled']['calories'] += meal.recipe.calories
                     if meal.is_eaten:
-                        week_stats['consumed']['calories'] += meal.recipe.calories or 0
+                        week_stats['consumed']['calories'] += meal.recipe.calories
         weekly_summaries.append(week_stats)
     
     return render_template('monthly_plan.html', page_class='page-monthly-plan',
@@ -1150,8 +1152,6 @@ def monthly_plan():
 @login_required
 def ai_architect():
     today = date.today()
-    start_of_week = today - timedelta(days=today.weekday())
-    
     all_recipes = Recipe.query.filter_by(household_id=current_user.household_id).order_by(Recipe.name).all()
     
     recipes_by_type = {
@@ -1168,7 +1168,7 @@ def ai_architect():
         'Meal Prep': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in recipes_by_type['Meal Prep']]
     }
 
-    return render_template('ai_architect.html', today=today, start_of_week=start_of_week, calendar=calendar, recipes_for_js=recipes_for_js)
+    return render_template('ai_architect.html', today=today, calendar=calendar, recipes_for_js=recipes_for_js)
 
 @app.route('/household', methods=['GET'])
 @login_required
@@ -2118,6 +2118,7 @@ def shopping_list():
     
     required = {}
     for meal in all_planned_meals:
+        if not meal.recipe: continue
         for item in meal.recipe.ingredients:
             if not item.quantity or item.quantity == 0: continue
             
