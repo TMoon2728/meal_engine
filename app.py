@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, send_from_directory, session, g
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import desc, and_, func
+from sqlalchemy import desc, and_, func, UniqueConstraint
 from datetime import date, timedelta, datetime
 import os, csv, random, json, io, re, uuid, calendar, time
 from werkzeug.utils import secure_filename
@@ -16,10 +16,6 @@ import smtplib
 from email.message import EmailMessage
 
 from whitenoise import WhiteNoise
-
-import requests
-from bs4 import BeautifulSoup
-import stripe
 
 import requests
 from bs4 import BeautifulSoup
@@ -40,7 +36,7 @@ stripe.api_key = app.config['STRIPE_SECRET_KEY']
 PLAN_CREDITS = {
     'free': 5,
     'premium': 50,
-    'elite': -1  # Use -1 to represent unlimited
+    'elite': -1
 }
 
 HOUSEHOLD_LIMITS = {
@@ -316,6 +312,63 @@ class HistoricalPlanEntry(db.Model):
     custom_item_name = db.Column(db.String(150), nullable=True)
     recipe = db.relationship('Recipe')
 
+class Achievement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+    icon = db.Column(db.String(50), nullable=False, default='fa-question-circle')
+
+class UserAchievement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    achievement_id = db.Column(db.Integer, db.ForeignKey('achievement.id'), nullable=False)
+    unlocked_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('achievements', cascade="all, delete-orphan"))
+    achievement = db.relationship('Achievement')
+    
+    __table_args__ = (UniqueConstraint('user_id', 'achievement_id', name='_user_achievement_uc'),)
+
+def award_achievement(user, achievement_name):
+    with app.app_context():
+        achievement = Achievement.query.filter_by(name=achievement_name).first()
+        if not achievement:
+            print(f"WARN: Achievement '{achievement_name}' not found in database.")
+            return
+
+        exists = UserAchievement.query.filter_by(user_id=user.id, achievement_id=achievement.id).first()
+        
+        if not exists:
+            new_unlock = UserAchievement(user_id=user.id, achievement_id=achievement.id)
+            db.session.add(new_unlock)
+            db.session.commit()
+            flash(f'🏆 Achievement Unlocked: {achievement.name}! - {achievement.description}', 'success')
+
+def initialize_achievements():
+    with app.app_context():
+        if Achievement.query.filter_by(name="Quantum Chef").first():
+            print("Achievements already initialized.")
+            return
+
+        achievements_to_add = [
+            {'name': 'First Steps', 'description': 'You created your account!', 'icon': 'fa-shoe-prints'},
+            {'name': 'The Creator', 'description': 'You added your very first recipe.', 'icon': 'fa-pencil-alt'},
+            {'name': 'AI Assistant', 'description': 'You generated your first recipe with AI.', 'icon': 'fa-magic'},
+            {'name': 'Web Scraper', 'description': 'You imported your first recipe from the web.', 'icon': 'fa-link'},
+            {'name': 'Weekly Planner', 'description': 'You saved your first weekly meal plan.', 'icon': 'fa-calendar-check'},
+            {'name': 'Pantry Organizer', 'description': 'You added your first item to the pantry.', 'icon': 'fa-box-open'},
+            {'name': 'Top Chef', 'description': 'You rated a recipe a full 5 stars.', 'icon': 'fa-star'},
+            {'name': 'AI Architect', 'description': 'You generated your first meal plan with the AI Architect.', 'icon': 'fa-robot'},
+            {'name': 'Quantum Chef', 'description': 'You discovered a strange new form of matter.', 'icon': 'fa-atom'}
+        ]
+        
+        for ach_data in achievements_to_add:
+            if not Achievement.query.filter_by(name=ach_data['name']).first():
+                db.session.add(Achievement(**ach_data))
+        
+        db.session.commit()
+        print("Achievements have been successfully initialized/updated in the database.")
+
 def send_reset_email(user_email, token):
     msg = EmailMessage()
     msg['Subject'] = 'Password Reset Request for Meal Engine'
@@ -376,8 +429,27 @@ def signup():
             ai_credits=PLAN_CREDITS['free']
         )
         db.session.add(user)
+        db.session.flush()
+
+        hint_instructions = (
+            "Welcome to Meal Engine! This is your very first recipe to get you started.\n\n"
+            "By the way, there are secrets hidden within this app for those with a taste for adventure.\n\n"
+            "To unlock true culinary magic, follow the legendary kitchen command:\n"
+            "Up, Up, Down, Down, Left, Right, Left, Right, Bake, Add."
+        )
+
+        first_recipe = Recipe(
+            name="Your First Recipe! (Read Me)",
+            instructions=hint_instructions,
+            meal_type="Snack",
+            author=user,
+            household_id=new_household.id
+        )
+        db.session.add(first_recipe)
         db.session.commit()
         
+        award_achievement(user, 'First Steps')
+
         flash('Your account has been created! You can now log in.', 'success')
         return redirect(url_for('login'))
     return render_template('signup.html')
@@ -612,6 +684,19 @@ def index():
     if not current_user.is_authenticated:
         return render_template('landing_page.html')
     
+    # --- START: CULINARY TITLES LOGIC ---
+    recipe_count = Recipe.query.filter_by(household_id=current_user.household_id).count()
+    five_star_count = Recipe.query.filter_by(household_id=current_user.household_id, rating=5).count()
+
+    culinary_title = "Kitchen Apprentice"
+    if recipe_count >= 50 and five_star_count >= 5:
+        culinary_title = "Michelin Star Chef"
+    elif recipe_count >= 30:
+        culinary_title = "Head Chef"
+    elif recipe_count >= 10:
+        culinary_title = "Sous Chef"
+    # --- END: CULINARY TITLES LOGIC ---
+    
     today = date.today()
     start_of_week = today - timedelta(days=today.weekday())
     end_of_week = start_of_week + timedelta(days=6)
@@ -722,7 +807,8 @@ def index():
                            weekly_stats=weekly_stats,
                            monthly_stats=monthly_stats,
                            kitchen_stats=kitchen_stats,
-                           most_made_recipes=most_made_recipes)
+                           most_made_recipes=most_made_recipes,
+                           culinary_title=culinary_title)
 
 
 @app.route('/recipes')
@@ -830,6 +916,9 @@ def ai_quick_add():
         
         deduct_ai_credit(current_user)
         db.session.commit()
+        
+        award_achievement(current_user, 'AI Assistant')
+        
         flash(f'Successfully generated and saved "{recipe_data["name"]}"!', 'success')
     except Exception as e:
         db.session.rollback()
@@ -839,13 +928,58 @@ def ai_quick_add():
         
     return redirect(url_for('list_recipes'))
 
-
 @app.route('/ingredients', methods=['GET', 'POST'])
 @login_required
 def list_ingredients():
     if request.method == 'POST':
         name = request.form.get('name')
         if name and not Ingredient.query.filter(db.func.lower(Ingredient.name) == db.func.lower(name.strip())).first():
+            
+            # --- QUANTUM SPICE EASTER EGG ---
+            if name.lower().strip() == 'quantum spice':
+                award_achievement(current_user, 'Quantum Chef')
+                
+                # Check if recipe already exists for this household to avoid duplicates
+                if not Recipe.query.filter_by(name="Schrödinger's Soufflé", household_id=current_user.household_id).first():
+                    souffle_instructions = (
+                        "1. Preheat your oven to a state of quantum uncertainty (somewhere between 350°F and 400°F).\n"
+                        "2. In a large bowl, simultaneously mix and do not mix the Quark-Flour and sugar until they are both combined and separate.\n"
+                        "3. Separate the entangled eggs. The yolks go in one bowl, the whites in another. Be careful, if you observe one, the state of the other is instantly known!\n"
+                        "4. Whisk the egg whites until they form stiff peaks that both exist and do not exist.\n"
+                        "5. Gently fold the egg whites into the yolk mixture. The final batter should be in a superposition of 'fluffy' and 'dense'.\n"
+                        "6. Pour into a soufflé dish and bake for an indeterminate amount of time.\n"
+                        "7. IMPORTANT: Do not open the oven to check on it. The act of observing the soufflé will cause its wave function to collapse, and it will likely be both risen and fallen at the same time.\n"
+                        "8. Serve immediately to guests who may or may not be there."
+                    )
+                    
+                    souffle_recipe = Recipe(
+                        name="Schrödinger's Soufflé",
+                        instructions=souffle_instructions,
+                        meal_type="Dessert", # It starts as a dessert
+                        author=current_user,
+                        household_id=current_user.household_id
+                    )
+                    db.session.add(souffle_recipe)
+                    db.session.flush()
+
+                    quantum_ingredients = ["Quark-Flour", "Entangled Eggs", "Higgs Boson Sugar", "Gluon Gravy"]
+                    for ing_name in quantum_ingredients:
+                        ing_obj = Ingredient.query.filter_by(name=ing_name).first()
+                        if not ing_obj:
+                            ing_obj = Ingredient(name=ing_name, category="Exotic")
+                            db.session.add(ing_obj)
+                            db.session.flush()
+                        
+                        recipe_ing = RecipeIngredient(recipe_id=souffle_recipe.id, ingredient_id=ing_obj.id, quantity=1, unit="measure")
+                        db.session.add(recipe_ing)
+                    
+                    flash("A strange energy emanates from your pantry... A new recipe has materialized!", "info")
+                
+                # Do not actually add Quantum Spice to the DB, it's just a trigger
+                db.session.commit()
+                return redirect(url_for('list_recipes'))
+            # --- END OF EASTER EGG ---
+
             db.session.add(Ingredient(name=name.strip().title()))
             db.session.commit()
             flash(f'"{name}" added to master ingredient list.', 'success')
@@ -902,6 +1036,9 @@ def update_pantry():
             new_item = PantryItem(ingredient_id=ingredient_id, quantity=quantity, unit=unit, household_id=current_user.household_id)
             db.session.add(new_item)
             db.session.commit()
+            
+            award_achievement(current_user, 'Pantry Organizer')
+            
             flash(f'"{new_item.ingredient.name}" added to pantry.', 'success')
 
     elif action == 'update_quantity':
@@ -941,6 +1078,9 @@ def add_recipe():
         )
         db.session.add(new_recipe)
         db.session.commit()
+        
+        award_achievement(current_user, 'The Creator')
+        
         flash('Recipe added successfully! Please add its ingredients below.', 'success')
         return redirect(url_for('edit_recipe', recipe_id=new_recipe.id))
     
@@ -950,6 +1090,15 @@ def add_recipe():
 @login_required
 def view_recipe(recipe_id):
     recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
+    
+    # --- SCHRÖDINGER'S SOUFFLÉ EASTER EGG ---
+    if recipe.name == "Schrödinger's Soufflé":
+        # It's in a superposition of meal types until you observe it!
+        possible_states = ['Dessert', 'Snack', 'Side Dish']
+        recipe.meal_type = random.choice(possible_states)
+        flash("By observing the soufflé, you've collapsed its wave function into a single state!", "info")
+    # --- END OF EASTER EGG ---
+    
     return render_template('view_recipe.html', recipe=recipe)
 
 @app.route('/recipe/<int:recipe_id>/cook')
@@ -958,6 +1107,9 @@ def cook_recipe(recipe_id):
     recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
     steps = [step.strip() for step in recipe.instructions.strip().split('\n') if step.strip()]
     return render_template('cooking_mode.html', recipe=recipe, steps=steps)
+
+# ... (The rest of your app.py file remains the same) ...
+# ... (Just copy and paste this whole block over your existing file) ...
 
 @app.route('/recipe/<int:recipe_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -1182,6 +1334,10 @@ def profile():
     member_limit = app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
     is_full = len(current_user.household.members) >= member_limit
 
+    all_achievements = Achievement.query.order_by(Achievement.name).all()
+    user_achievements_query = UserAchievement.query.filter_by(user_id=current_user.id).all()
+    unlocked_achievement_ids = {ua.achievement_id for ua in user_achievements_query}
+
     if request.method == 'POST':
         action = request.form.get('action')
 
@@ -1246,7 +1402,12 @@ def profile():
             return redirect(url_for('profile'))
 
     stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
-    return render_template('profile.html', stores=stores, member_limit=member_limit, is_full=is_full)
+    return render_template('profile.html', 
+                           stores=stores, 
+                           member_limit=member_limit, 
+                           is_full=is_full,
+                           all_achievements=all_achievements,
+                           unlocked_achievement_ids=unlocked_achievement_ids)
 
 @app.route('/join-household/<token>')
 @login_required
@@ -1389,6 +1550,8 @@ def import_and_create_recipe():
         deduct_ai_credit(current_user)
         db.session.commit()
         
+        award_achievement(current_user, 'Web Scraper')
+        
         flash(f'Successfully imported "{new_recipe.name}"! Please review the details and AI-generated nutritional info.', 'success')
         return jsonify({'success': True, 'recipe_id': new_recipe.id})
 
@@ -1501,6 +1664,8 @@ def build_plan_api():
         deduct_ai_credit(current_user)
         db.session.commit()
         
+        award_achievement(current_user, 'AI Architect')
+        
         return jsonify(response_payload)
     except Exception as e:
         db.session.rollback()
@@ -1591,6 +1756,10 @@ def set_rating(recipe_id):
     if rating is not None and 0 <= int(rating) <= 5:
         recipe.rating = int(rating)
         db.session.commit()
+        
+        if recipe.rating == 5:
+            award_achievement(current_user, 'Top Chef')
+            
         return jsonify({'success': True, 'rating': recipe.rating})
     return jsonify({'success': False, 'message': 'Invalid rating.'}), 400
 
@@ -1974,6 +2143,8 @@ def meal_plan():
             flash(f'Meal plan saved and also stored as "{historical_plan_name}"!', 'success')
         else:
             flash('Meal plan saved successfully!', 'success')
+        
+        award_achievement(current_user, 'Weekly Planner')
 
         return redirect(url_for('meal_plan', start_date=week_start_str))
 

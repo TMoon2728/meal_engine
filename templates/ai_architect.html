@@ -167,9 +167,17 @@ document.addEventListener('DOMContentLoaded', function() {
     let originalGeneratedPlan = null;
     let currentEditingTarget = null;
 
+    const wittyMessages = [
+        'Consulting with our virtual chefs...',
+        'Planning a feast for the ages...',
+        'Making sure leftovers are strategically placed...',
+        'Balancing the food pyramid (mostly)...',
+        'Simulating a week of deliciousness...',
+        'Sharpening the AI\'s digital knives...',
+    ];
+
     function isMobile() { return window.innerWidth < 768; }
 
-    // --- START: CORRECTED DISPLAY PLAN FUNCTION ---
     function displayPlan(response) {
         originalGeneratedPlan = response;
         const plan = response.plan;
@@ -178,7 +186,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let planHtml = `<div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-3 flex-wrap"><h2>Your AI-Generated Plan</h2><button id="save-ai-plan-btn" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save This Plan</button></div>`;
 
-        // Mobile View (List)
         if (isMobile()) {
             if (duration === 'week') {
                 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -213,7 +220,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 planHtml += `</div>`;
             }
         } 
-        // Desktop View (Grid)
         else {
             if (duration === 'week') {
                 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -256,9 +262,7 @@ document.addEventListener('DOMContentLoaded', function() {
         planHtml += `</div></div>`;
         resultsContainer.innerHTML = planHtml;
     }
-    // --- END: CORRECTED DISPLAY PLAN FUNCTION ---
 
-    // --- START: RECIPE TRAY JAVASCRIPT ---
     function renderRecipeTray(recipes) {
         const trayMap = { 'Main Course': 'main-tray', 'Side Dish': 'side-tray', 'Snack': 'snack-tray', 'Meal Prep': 'prep-tray' };
         for (const type in trayMap) {
@@ -302,10 +306,8 @@ document.addEventListener('DOMContentLoaded', function() {
         renderRecipeTray(suggestions);
     });
 
-    renderRecipeTray(allRecipesForJs); // Initial population
-    // --- END: RECIPE TRAY JAVASCRIPT ---
+    renderRecipeTray(allRecipesForJs);
     
-    // --- EVENT LISTENERS ---
     durationSelector.addEventListener('change', function() {
         monthYearSelector.style.display = (this.value === 'month') ? 'block' : 'none';
         takeoutSlider.max = (this.value === 'month') ? 10 : 7;
@@ -318,7 +320,8 @@ document.addEventListener('DOMContentLoaded', function() {
     takeoutSlider.addEventListener('input', function() { takeoutLabel.textContent = this.value; });
 
     buildBtn.addEventListener('click', function() {
-        resultsContainer.innerHTML = '<div class="text-center card p-3"><p class="lead">🧠 Contacting AI Architect...</p><div class="spinner-border text-primary" role="status"></div></div>';
+        const randomMessage = wittyMessages[Math.floor(Math.random() * wittyMessages.length)];
+        resultsContainer.innerHTML = `<div class="text-center card p-3"><p class="lead">${randomMessage}</p><div class="spinner-border text-primary" role="status"></div></div>`;
         buildBtn.disabled = true;
 
         const mealSlotsToPlan = Array.from(document.querySelectorAll('#meal-slots-selection input:checked')).map(cb => cb.value);
@@ -395,7 +398,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // --- MOBILE EDITING MODAL LOGIC ---
     function populateEditModal(filter = '') {
         const listContainer = document.getElementById('modal-recipe-list');
         listContainer.innerHTML = '';

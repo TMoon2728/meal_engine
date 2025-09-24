@@ -186,10 +186,6 @@ body.cooking-mode-active .navbar { display: none !important; }
     border-color: #dee2e6 #dee2e6 var(--card-bg) !important;
 }
 
-
-/* =================================================================== */
-/* ===== NEW SECTION: MOBILE-SPECIFIC FIXES (Phones & Portrait) ===== */
-/* =================================================================== */
 @media (max-width: 767.98px) {
     body {
         font-size: 0.95rem;
@@ -203,7 +199,6 @@ body.cooking-mode-active .navbar { display: none !important; }
         padding-right: 15px;
     }
 
-    /* --- General Form Fixes for Mobile --- */
     .form-inline {
         flex-direction: column;
         align-items: stretch;
@@ -229,7 +224,6 @@ body.cooking-mode-active .navbar { display: none !important; }
         font-size: 0.85rem;
     }
 
-    /* --- Meal Plan Page (page-meal-plan) Fixes --- */
     body.page-meal-plan .col-md-2.no-print {
         display: none !important;
     }
@@ -257,7 +251,6 @@ body.cooking-mode-active .navbar { display: none !important; }
         margin-right: 0 !important;
     }
     
-    /* --- Monthly Plan Page (page-monthly-plan) Fixes --- */
     body.page-monthly-plan .monthly-plan-header {
         flex-wrap: wrap;
         justify-content: center;
@@ -275,7 +268,6 @@ body.cooking-mode-active .navbar { display: none !important; }
         font-size: 0.75rem;
         padding: 0.4rem 0.2rem;
     }
-    /* Hide the detailed meal list and show the calorie count on mobile */
     body.page-monthly-plan .calendar-day .meals {
         display: none;
     }
@@ -309,14 +301,11 @@ body.cooking-mode-active .navbar { display: none !important; }
         font-size: 0.8rem;
     }
 
-
-    /* --- Shopping List Page (page-shopping-list) Fixes --- */
     body.page-shopping-list .form-inline {
         flex-direction: column;
         align-items: stretch;
     }
 
-    /* --- Recipes Page (page-recipes) Fixes --- */
     body.page-recipes .card.p-3 .d-flex.justify-content-between {
         flex-direction: column;
     }
@@ -337,4 +326,100 @@ body.cooking-mode-active .navbar { display: none !important; }
     body.page-recipes .card.p-3 .btn-group .btn {
         flex-grow: 1;
     }
+}
+
+.achievement-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.achievement-card {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.achievement-card.locked {
+    background-color: #f8f9fa;
+    opacity: 0.6;
+}
+
+.achievement-card.unlocked {
+    background-color: #e9f7f0;
+    border-color: var(--success-green);
+}
+
+.achievement-icon {
+    font-size: 2.5rem;
+    margin-right: 1rem;
+    flex-shrink: 0;
+    width: 50px;
+    text-align: center;
+}
+
+.achievement-card.locked .achievement-icon {
+    color: #6c757d;
+}
+
+.achievement-card.unlocked .achievement-icon {
+    color: var(--success-green);
+}
+
+.achievement-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.achievement-description {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 0;
+}
+
+#easter-egg-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 9999;
+}
+
+.chef-emoji {
+    position: absolute;
+    top: -50px;
+    font-size: 2rem;
+    animation-name: fall;
+    animation-timing-function: linear;
+}
+
+@keyframes fall {
+    to {
+        transform: translateY(105vh) rotate(360deg);
+    }
+}
+
+.shake-animation {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+  10%, 90% {
+    transform: translate3d(-1px, 0, 0);
+  }
+  20%, 80% {
+    transform: translate3d(2px, 0, 0);
+  }
+  30%, 50%, 70% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  40%, 60% {
+    transform: translate3d(4px, 0, 0);
+  }
 }

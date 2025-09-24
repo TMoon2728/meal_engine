@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container-fluid">
   <div class="text-center mb-4">
-    <h1 class="display-4">Welcome, {{ current_user.email.split('@')[0] }}!</h1>
+    <h1 class="display-4">Welcome, {{ culinary_title }} {{ current_user.email.split('@')[0] }}!</h1>
     <p class="lead">Here's your dashboard for the day.</p>
   </div>
 
@@ -83,7 +83,6 @@
     </div>
   </div>
 
-  <!-- ===== THIS IS THE CORRECTED STATS ROW WITH ALL THREE WIDGETS ===== -->
   <div class="row">
     <div class="col-12 col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
@@ -167,9 +166,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const fridgeIngredients = document.getElementById('fridge-ingredients');
     const fridgeResultBox = document.getElementById('fridge-result-box');
 
+    const wittyMessages = [
+        'Mixing potions in the digital cauldron...',
+        'Inventing a dish never seen before...',
+        'Seeing if pickles and chocolate actually work...',
+        'Dusting off the ancient cookbook...',
+        'Summoning the spirit of a master chef...',
+        'Running culinary simulations...',
+    ];
+
     generateBtn.addEventListener('click', function() {
         fridgeResultBox.style.display = 'block';
-        fridgeResultBox.textContent = '🧠 Inventing a new recipe...';
+        const randomMessage = wittyMessages[Math.floor(Math.random() * wittyMessages.length)];
+        fridgeResultBox.textContent = `🧠 ${randomMessage}`;
+
         const data = { ingredients: fridgeIngredients.value };
         fetch('/api/generate-from-ingredients', {
             method: 'POST',

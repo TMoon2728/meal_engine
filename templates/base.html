@@ -57,9 +57,12 @@
     </style>
   </head>
   <body class="{{ page_class or '' }}">
+    
+    <div id="easter-egg-container"></div>
+
     <nav class="navbar navbar-expand-lg navbar-dark no-print">
       <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('index') }}">Meal Engine</a>
+        <a class="navbar-brand" href="{{ url_for('index') }}" id="navbar-brand-logo">Meal Engine</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -100,15 +103,13 @@
                         <a class="dropdown-item" href="{{ url_for('pricing') }}"><i class="fas fa-arrow-alt-circle-up"></i> Upgrade Plan</a>
                       {% endif %}
                       
-                      {# --- START: MANAGE BILLING BUTTON COMMENTED OUT --- #}
-                      {# {% if current_user.is_premium_or_elite %}
+                      {% if current_user.is_premium_or_elite %}
                         <div class="dropdown-item-form">
                             <form action="{{ url_for('create_billing_portal_session') }}" method="POST">
                                 <button type="submit" class="dropdown-item-button"><i class="fas fa-credit-card"></i> Manage Billing</button>
                             </form>
                         </div>
-                      {% endif %} #}
-                      {# --- END: MANAGE BILLING BUTTON COMMENTED OUT --- #}
+                      {% endif %}
 
                       <div class="dropdown-divider"></div>
                       
@@ -171,6 +172,65 @@
             });
         });
       }
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- KONAMI CODE EASTER EGG ---
+        const konamiCode = [ 'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a' ];
+        let konamiIndex = 0;
+        document.addEventListener('keydown', function(e) {
+            if (e.key.toLowerCase() === konamiCode[konamiIndex].toLowerCase()) {
+                konamiIndex++;
+                if (konamiIndex === konamiCode.length) {
+                    konamiIndex = 0; 
+                    const container = document.getElementById('easter-egg-container');
+                    for (let i = 0; i < 30; i++) {
+                        const emoji = document.createElement('div');
+                        emoji.className = 'chef-emoji';
+                        emoji.textContent = '👨‍🍳';
+                        emoji.style.left = `${Math.random() * 100}vw`;
+                        emoji.style.animationDuration = `${Math.random() * 2 + 3}s`;
+                        emoji.style.animationDelay = `${Math.random() * 2}s`;
+                        container.appendChild(emoji);
+                    }
+                    setTimeout(() => { container.innerHTML = ''; }, 5000);
+                }
+            } else { konamiIndex = 0; }
+        });
+
+        // --- SHAKY ENGINE EASTER EGG (FIXED & WITH SOUND) ---
+        const logo = document.getElementById('navbar-brand-logo');
+        const mainContent = document.querySelector('.main-content-container');
+        const engineSound = new Audio("{{ url_for('static', filename='sounds/engine-start.mp3') }}");
+        let clickCount = 0;
+        let clickTimer = null;
+        const clickDelay = 300;
+
+        logo.addEventListener('click', function(e) {
+            e.preventDefault();
+            clickCount++;
+
+            clearTimeout(clickTimer);
+
+            clickTimer = setTimeout(() => {
+                if (clickCount === 1) {
+                    window.location.href = logo.href;
+                }
+                clickCount = 0;
+            }, clickDelay);
+
+            if (clickCount === 5) {
+                mainContent.classList.add('shake-animation');
+                engineSound.play();
+                clickCount = 0;
+                clearTimeout(clickTimer);
+
+                setTimeout(() => {
+                    mainContent.classList.remove('shake-animation');
+                }, 500);
+            }
+        });
+    });
     </script>
   </body>
 </html>

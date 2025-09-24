@@ -122,6 +122,31 @@
     </div>
 </div>
 
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h1 class="card-title"><i class="fas fa-trophy"></i> Culinary Achievements</h1>
+                <hr>
+                <div class="achievement-grid">
+                    {% for ach in all_achievements %}
+                        {% set is_unlocked = ach.id in unlocked_achievement_ids %}
+                        <div class="achievement-card {% if is_unlocked %}unlocked{% else %}locked{% endif %}" title="{{ ach.description }}">
+                            <div class="achievement-icon">
+                                <i class="fas {{ ach.icon }}"></i>
+                            </div>
+                            <div class="achievement-details">
+                                <h5 class="achievement-name">{{ ach.name }}</h5>
+                                <p class="achievement-description">{{ ach.description }}</p>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const generateBtn = document.getElementById('generate-invite-btn');

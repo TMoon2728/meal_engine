@@ -110,27 +110,61 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // (The favorite-icon and ai-quick-add-form scripts remain the same)
     document.querySelectorAll('.favorite-icon').forEach(icon => {
-        icon.addEventListener('click', function() { /* ... existing code ... */ });
+        icon.addEventListener('click', function() {
+            const recipeId = this.dataset.recipeId;
+            fetch(`/api/toggle-favorite/${recipeId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_favorite) {
+                    this.classList.remove('far'); this.classList.add('fas');
+                } else {
+                    this.classList.remove('fas'); this.classList.add('far');
+                }
+            });
+        });
     });
-    const aiForm = document.getElementById('ai-quick-add-form');
-    if (aiForm) { /* ... existing code ... */ }
 
-    // --- START: MODIFIED IMPORT SCRIPT ---
+    const aiForm = document.getElementById('ai-quick-add-form');
+    if (aiForm) {
+        const generateBtn = document.getElementById('ai-generate-btn');
+        const wittyMessages = [
+            'Consulting the culinary cosmos...',
+            'Unleashing the flavor algorithm...',
+            'Simmering some new ideas...',
+            'Chopping up some data bits...',
+            'Asking grandma for her secret recipe...',
+        ];
+        aiForm.addEventListener('submit', function() {
+            generateBtn.disabled = true;
+            const randomMessage = wittyMessages[Math.floor(Math.random() * wittyMessages.length)];
+            generateBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${randomMessage}`;
+        });
+    }
+
     const importForm = document.getElementById('import-url-form');
     if (importForm) {
       const importBtn = document.getElementById('import-url-btn');
       const urlInput = document.getElementById('recipe-url-input');
+      const wittyMessages = [
+          'Scanning for secret ingredients...',
+          'Asking the chef for the recipe...',
+          'Translating from Fancytalk to English...',
+          'Preheating the AI...',
+          'Washing the digital vegetables...',
+          'Definitely not stealing the recipe... just borrowing!',
+      ];
 
       importForm.addEventListener('submit', function(e) {
           e.preventDefault();
           
-          // 1. Disable the button and show a loading state
           importBtn.disabled = true;
-          importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+          const randomMessage = wittyMessages[Math.floor(Math.random() * wittyMessages.length)];
+          importBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${randomMessage}`;
 
-          // 2. Add a helpful message for the user
           const helpText = document.createElement('p');
           helpText.className = 'text-muted small mt-2';
           helpText.textContent = 'This may take a minute. Please wait...';
@@ -144,23 +178,20 @@ document.addEventListener('DOMContentLoaded', function() {
           .then(response => response.json())
           .then(data => {
               if (data.error) {
-                  // On error, show an alert and remove the help text
                   alert(`Error: ${data.error}`);
                   helpText.remove();
               } else if (data.redirect_url) {
                   window.location.href = data.redirect_url;
               } else if (data.success) {
-                  // On success, redirect to the new recipe
                   window.location.href = `/recipe/${data.recipe_id}/edit`;
               }
           })
           .catch(error => {
               alert('An unexpected network error occurred. Please try again.');
               console.error('Import Error:', error);
-              helpText.remove(); // Also remove help text on catch
+              helpText.remove();
           })
           .finally(() => {
-              // 3. Always re-enable the button in case of an error
               importBtn.disabled = false;
               importBtn.innerHTML = '<i class="fas fa-download"></i> Import';
           });
