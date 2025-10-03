@@ -427,7 +427,7 @@ def profile():
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'generate_invite':
-            if is_full: return jsonify({'error': f"Your household is full."}), 403
+            if is_full and not is_unlimited: return jsonify({'error': f"Your household is full."}), 403
             HouseholdInvitation.query.filter_by(household_id=current_user.household_id).delete()
             token = str(uuid.uuid4())
             new_invitation = HouseholdInvitation(household_id=current_user.household_id, token=token, expires_at=datetime.utcnow() + timedelta(hours=24))
@@ -661,4 +661,20 @@ def export_recipes():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['id', 'name', 'instructions', 'servings', 'prep_time', 'cook_time', 'meal_type', 'is_favorite', 'rating', 'author_email'])
-    for r in
+    for r in recipes:
+        writer.writerow([r.id, r.name, r.instructions, r.servings, r.prep_time, r.cook_time, r.meal_type, r.is_favorite, r.rating, r.author.email])
+    output.seek(0)
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=recipes.csv"})
+
+@main.route('/export/recipe_ingredients')
+@login_required
+def export_recipe_ingredients():
+    recipe_ids = [r.id for r in current_user.household.recipes]
+    recipe_ingredients = RecipeIngredient.query.filter(RecipeIngredient.recipe_id.in_(recipe_ids)).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['recipe_id', 'ingredient_name', 'quantity', 'unit'])
+    for ri in recipe_ingredients:
+        writer.writerow([ri.recipe_id, ri.ingredient.name, ri.quantity, ri.unit])
+    output.seek(0)
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=recipe_ingredients.csv"})
