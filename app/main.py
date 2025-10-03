@@ -422,6 +422,7 @@ def profile():
     household_owner = current_user.household.members[0]
     member_limit = current_app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
     is_full = len(current_user.household.members) >= member_limit
+    is_unlimited = (member_limit == float('inf'))
 
     if request.method == 'POST':
         action = request.form.get('action')
@@ -461,7 +462,13 @@ def profile():
     stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
     all_achievements = Achievement.query.order_by(Achievement.name).all()
     unlocked_achievement_ids = {ua.achievement_id for ua in current_user.achievements}
-    return render_template('profile.html', stores=stores, member_limit=member_limit, is_full=is_full, all_achievements=all_achievements, unlocked_achievement_ids=unlocked_achievement_ids)
+    return render_template('profile.html', 
+                           stores=stores, 
+                           member_limit=member_limit, 
+                           is_full=is_full,
+                           all_achievements=all_achievements,
+                           unlocked_achievement_ids=unlocked_achievement_ids,
+                           is_unlimited=is_unlimited)
 
 @main.route('/join-household/<token>')
 @login_required
@@ -555,9 +562,7 @@ def meal_plan():
     initial_tray_recipes_js = {}
     for r in initial_tray_recipes:
         tray_category = TRAY_CATEGORY_MAP.get(r.meal_type.strip().title() if r.meal_type else 'Main Course', 'Main Course')
-        if tray_category not in initial_tray_recipes_js:
-            initial_tray_recipes_js[tray_category] = []
-        initial_tray_recipes_js[tray_category].append({'id': r.id, 'name': r.name, 'meal_type': r.meal_type})
+        initial_tray_recipes_js.setdefault(tray_category, []).append({'id': r.id, 'name': r.name, 'meal_type': r.meal_type})
     
     historical_plans = HistoricalPlan.query.filter_by(household_id=current_user.household_id).order_by(HistoricalPlan.name).all()
     
@@ -656,20 +661,4 @@ def export_recipes():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['id', 'name', 'instructions', 'servings', 'prep_time', 'cook_time', 'meal_type', 'is_favorite', 'rating', 'author_email'])
-    for r in recipes:
-        writer.writerow([r.id, r.name, r.instructions, r.servings, r.prep_time, r.cook_time, r.meal_type, r.is_favorite, r.rating, r.author.email])
-    output.seek(0)
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=recipes.csv"})
-
-@main.route('/export/recipe_ingredients')
-@login_required
-def export_recipe_ingredients():
-    recipe_ids = [r.id for r in current_user.household.recipes]
-    recipe_ingredients = RecipeIngredient.query.filter(RecipeIngredient.recipe_id.in_(recipe_ids)).all()
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['recipe_id', 'ingredient_name', 'quantity', 'unit'])
-    for ri in recipe_ingredients:
-        writer.writerow([ri.recipe_id, ri.ingredient.name, ri.quantity, ri.unit])
-    output.seek(0)
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=recipe_ingredients.csv"})
+    for r in
