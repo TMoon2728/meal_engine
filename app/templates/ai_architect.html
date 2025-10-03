@@ -1,0 +1,454 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    /* Desktop-specific styles for the AI plan grid */
+    .ai-plan-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+    .ai-day-card { border: 1px solid #dee2e6; border-radius: .3rem; }
+    .ai-day-header { background-color: #f8f9fa; padding: .5rem; font-weight: 600; text-align: center; border-bottom: 1px solid #dee2e6; }
+    .ai-day-body { padding: .5rem; }
+    .ai-meal-item { font-size: 0.8rem; padding: 4px; border-radius: 4px; margin-bottom: 4px; background-color: #f1f3f5; }
+    .ai-meal-item h6 { font-size: 0.85rem; margin-bottom: 2px; color: var(--text-dark); font-weight: 600; }
+    .ai-meal-item p { margin-bottom: 0; font-size: 0.8rem; }
+
+
+    /* Mobile-specific styles */
+    @media (max-width: 767.98px) {
+        .ai-architect-main-content { padding-top: 1rem; }
+        .day-list-item { margin-bottom: 1rem; border: 1px solid #dee2e6; border-radius: .5rem; padding: 1rem; background-color: #fff; }
+        .day-list-header { font-size: 1.1rem; font-weight: 600; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+        .meal-list-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding: 0.25rem 0; }
+        .meal-list-item strong { flex-basis: 90px; color: #6c757d; }
+        .meal-list-item .meal-name { flex-grow: 1; }
+        .meal-list-item .edit-meal-btn { flex-shrink: 0; margin-left: 10px; }
+    }
+</style>
+
+<div class="row">
+    <!-- ===== START: RECIPE TRAY COLUMN ===== -->
+    <div class="col-md-3 no-print d-none d-md-block">
+        <div class="sticky-top" style="top: 1rem;">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-book-open"></i> Your Recipes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex mb-3">
+                        <input type="search" id="recipe-search" class="form-control" placeholder="Search...">
+                        <button type="button" id="suggest-recipes-btn" class="btn btn-secondary ml-2 flex-shrink-0" title="Suggest"><i class="fas fa-random"></i></button>
+                    </div>
+                    <div class="nav nav-tabs" id="recipeTypeTab" role="tablist">
+                        <a class="nav-item nav-link active col-6 text-center" data-toggle="tab" href="#main-tray">Mains</a>
+                        <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#side-tray">Sides</a>
+                        <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#snack-tray">Snacks</a>
+                        <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#prep-tray">Meal Prep</a>
+                    </div>
+                    <div class="tab-content pt-3" id="recipe-tray-container">
+                        <div class="tab-pane fade show active" id="main-tray" role="tabpanel"><div class="recipe-tray" style="min-height: 50px;"></div></div>
+                        <div class="tab-pane fade" id="side-tray" role="tabpanel"><div class="recipe-tray" style="min-height: 50px;"></div></div>
+                        <div class="tab-pane fade" id="snack-tray" role="tabpanel"><div class="recipe-tray" style="min-height: 50px;"></div></div>
+                        <div class="tab-pane fade" id="prep-tray" role="tabpanel"><div class="recipe-tray" style="min-height: 50px;"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- ===== END: RECIPE TRAY COLUMN ===== -->
+
+    <!-- Main AI Architect Card -->
+    <div class="col-md-9 ai-architect-main-content">
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="text-center">
+                    <h1><i class="fas fa-magic"></i> AI Meal Plan Architect</h1>
+                    <p class="lead mb-0">Choose your directives and let the AI build a plan for you!</p>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-lg-10">
+                        <div class="row">
+                            <div class="col-md-4 form-group">
+                                <label for="plan-duration"><strong>1. Plan Duration:</strong></label>
+                                <select id="plan-duration" class="form-control">
+                                    <option value="week">This Week</option>
+                                    <option value="month">A Full Month</option>
+                                </select>
+                            </div>
+                             <div class="col-md-4 form-group" id="month-year-selector" style="display: none;">
+                                <label for="plan-month"><strong>For Month/Year:</strong></label>
+                                <div class="d-flex">
+                                    <select id="plan-month" class="form-control mr-2">
+                                        {% for i in range(1, 13) %}<option value="{{ i }}" {% if i == today.month %}selected{% endif %}>{{ calendar.month_name[i] }}</option>{% endfor %}
+                                    </select>
+                                    <select id="plan-year" class="form-control"><option value="{{ today.year }}">{{ today.year }}</option><option value="{{ today.year + 1 }}">{{ today.year + 1 }}</option></select>
+                                </div>
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <label for="plan-theme"><strong>2. Choose a Theme:</strong></label>
+                                <select id="plan-theme" class="form-control">
+                                     <option value="A Balanced and Varied Plan">A Balanced Plan</option>
+                                    <option value="Quick & Easy Dinners (under 30 mins)">Quick & Easy</option>
+                                    <option value="Hearty Comfort Food Classics">Comfort Food Classics</option>
+                                    <option value="Healthy & Light Options">Healthy & Light</option>
+                                    <option value="Vegetarian Delight">Vegetarian Delight</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 form-group">
+                                <label><strong>3. Meals to Plan:</strong></label>
+                                <div id="meal-slots-selection">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="plan-breakfast" value="Breakfast" checked>
+                                        <label class="form-check-label" for="plan-breakfast">Breakfast</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="plan-lunch" value="Lunch" checked>
+                                        <label class="form-check-label" for="plan-lunch">Lunch</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="plan-dinner" value="Dinner" checked>
+                                        <label class="form-check-label" for="plan-dinner">Dinner</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8 form-group">
+                                <label><strong>4. Other Directives:</strong></label>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="use-pantry">
+                                    <label class="form-check-label" for="use-pantry"><i class="fas fa-box-open"></i> Use pantry items</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="focus-favorites">
+                                    <label class="form-check-label" for="focus-favorites"><i class="fas fa-star"></i> Use favorites</label>
+                                </div>
+                                <div class="mt-2">
+                                    <label for="takeout-days" class="d-block"><i class="fas fa-utensils"></i> Takeout / Restaurant Dinners: <strong id="takeout-days-label">0</strong></label>
+                                    <input type="range" class="custom-range" id="takeout-days" min="0" max="7" value="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 d-flex align-items-end">
+                        <button id="build-plan-btn" class="btn btn-primary btn-block btn-lg mt-3 mt-lg-0">Build My Plan</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="ai-plan-results-container"></div>
+    </div>
+</div>
+
+<!-- MODAL FOR MOBILE RECIPE EDITING -->
+<div class="modal fade" id="editMealModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editMealModalTitle">Edit Meal</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <input type="search" id="modal-recipe-search" class="form-control mb-3" placeholder="Search recipes...">
+        <div id="modal-recipe-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const allRecipesForJs = {{ recipes_for_js | tojson }};
+    const buildBtn = document.getElementById('build-plan-btn');
+    const resultsContainer = document.getElementById('ai-plan-results-container');
+    const takeoutSlider = document.getElementById('takeout-days');
+    const takeoutLabel = document.getElementById('takeout-days-label');
+    const durationSelector = document.getElementById('plan-duration');
+    const monthYearSelector = document.getElementById('month-year-selector');
+    let originalGeneratedPlan = null;
+    let currentEditingTarget = null;
+
+    const wittyMessages = [
+        'Consulting with our virtual chefs...',
+        'Planning a feast for the ages...',
+        'Making sure leftovers are strategically placed...',
+        'Balancing the food pyramid (mostly)...',
+        'Simulating a week of deliciousness...',
+        'Sharpening the AI\'s digital knives...',
+    ];
+
+    function isMobile() { return window.innerWidth < 768; }
+
+    function displayPlan(response) {
+        originalGeneratedPlan = response;
+        const plan = response.plan;
+        const duration = response.duration;
+        const slots = Object.keys(Object.values(plan)[0] || {});
+        
+        let planHtml = `<div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-3 flex-wrap"><h2>Your AI-Generated Plan</h2><button id="save-ai-plan-btn" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save This Plan</button></div>`;
+
+        if (isMobile()) {
+            if (duration === 'week') {
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                days.forEach((day, index) => {
+                    const dayData = plan[day] || {};
+                    const dateStr = `week-${index}`;
+                    planHtml += `<div class="day-list-item"><div class="day-list-header">${day}</div>`;
+                    slots.forEach(slot => {
+                        if (dayData[slot]) {
+                            planHtml += `<div class="meal-list-item"><strong>${slot}:</strong><span class="meal-name" id="meal-${dateStr}-${slot}">${dayData[slot].name}</span><button class="btn btn-sm btn-outline-secondary edit-meal-btn" data-day="${day}" data-date="${dateStr}" data-slot="${slot}"><i class="fas fa-edit"></i></button></div>`;
+                        }
+                    });
+                    planHtml += `</div>`;
+                });
+            } else { // Month view for mobile
+                const year = response.year;
+                const month = response.month;
+                const numDays = new Date(year, month, 0).getDate();
+                planHtml += `<div id="ai-month-plan-mobile-list">`;
+                for (let day = 1; day <= numDays; day++) {
+                    const currentDate = new Date(year, month - 1, day);
+                    const dayData = plan[day.toString()] || {};
+                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    planHtml += `<div class="day-list-item"><div class="day-list-header">${currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>`;
+                    slots.forEach(slot => {
+                        if (dayData[slot]) {
+                            planHtml += `<div class="meal-list-item"><strong>${slot}:</strong><span class="meal-name" id="meal-${dateStr}-${slot}">${dayData[slot].name}</span><button class="btn btn-sm btn-outline-secondary edit-meal-btn" data-day="${day}" data-date="${dateStr}" data-slot="${slot}"><i class="fas fa-edit"></i></button></div>`;
+                        }
+                    });
+                    planHtml += `</div>`;
+                }
+                planHtml += `</div>`;
+            }
+        } 
+        else {
+            if (duration === 'week') {
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                planHtml += `<div class="ai-plan-grid">`;
+                days.forEach(day => {
+                    planHtml += `<div class="ai-day-card"><div class="ai-day-header">${day}</div><div class="ai-day-body">`;
+                    const dayData = plan[day] || {};
+                    slots.forEach(slot => {
+                        if (dayData[slot]) {
+                            planHtml += `<div class="ai-meal-item"><h6>${slot}</h6><p>${dayData[slot].name}</p></div>`;
+                        }
+                    });
+                    planHtml += `</div></div>`;
+                });
+                planHtml += `</div>`;
+            } else { // Month view for desktop
+                const year = response.year;
+                const month = response.month;
+                const firstDay = new Date(year, month - 1, 1).getDay();
+                const daysInMonth = new Date(year, month, 0).getDate();
+                const dayOffset = (firstDay === 0) ? 6 : firstDay - 1;
+                
+                planHtml += `<div class="monthly-calendar-grid">`;
+                ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(d => planHtml += `<div class="calendar-header">${d}</div>`);
+                for (let i = 0; i < dayOffset; i++) { planHtml += `<div class="calendar-day not-current-month"></div>`; }
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dayData = plan[day.toString()] || {};
+                    planHtml += `<div class="calendar-day"><div class="day-number">${day}</div><div class="meals">`;
+                    slots.forEach(slot => {
+                        if(dayData[slot]) {
+                            planHtml += `<div class="meal-item meal-type-${slot.toLowerCase()}">${dayData[slot].name}</div>`;
+                        }
+                    });
+                    planHtml += `</div></div>`;
+                }
+                planHtml += `</div>`;
+            }
+        }
+        
+        planHtml += `</div></div>`;
+        resultsContainer.innerHTML = planHtml;
+    }
+
+    function renderRecipeTray(recipes) {
+        const trayMap = { 'Main Course': 'main-tray', 'Side Dish': 'side-tray', 'Snack': 'snack-tray', 'Meal Prep': 'prep-tray' };
+        for (const type in trayMap) {
+            const trayEl = document.querySelector(`#${trayMap[type]} .recipe-tray`);
+            if (trayEl) trayEl.innerHTML = '';
+        }
+        for (const type in recipes) {
+            const trayId = trayMap[type];
+            if (trayId) {
+                const trayEl = document.querySelector(`#${trayId} .recipe-tray`);
+                recipes[type].forEach(recipe => {
+                    const card = document.createElement('div');
+                    card.className = 'recipe-tray-card p-2 mb-2';
+                    card.textContent = recipe.name;
+                    trayEl.appendChild(card);
+                });
+            }
+        }
+    }
+
+    document.getElementById('recipe-search').addEventListener('keyup', () => {
+        const query = document.getElementById('recipe-search').value.toLowerCase();
+        const filtered = {};
+        for (const type in allRecipesForJs) {
+            filtered[type] = allRecipesForJs[type].filter(r => r.name.toLowerCase().includes(query));
+        }
+        renderRecipeTray(filtered);
+    });
+
+    document.getElementById('suggest-recipes-btn').addEventListener('click', () => {
+        const suggestions = {};
+        for (const mealType in allRecipesForJs) {
+            const recipesForType = allRecipesForJs[mealType];
+            if (recipesForType.length > 0) {
+                const shuffled = [...recipesForType].sort(() => 0.5 - Math.random());
+                suggestions[mealType] = shuffled.slice(0, Math.min(recipesForType.length, 10));
+            } else {
+                suggestions[mealType] = [];
+            }
+        }
+        renderRecipeTray(suggestions);
+    });
+
+    renderRecipeTray(allRecipesForJs);
+    
+    durationSelector.addEventListener('change', function() {
+        monthYearSelector.style.display = (this.value === 'month') ? 'block' : 'none';
+        takeoutSlider.max = (this.value === 'month') ? 10 : 7;
+        if (takeoutSlider.value > takeoutSlider.max) {
+            takeoutSlider.value = takeoutSlider.max;
+            takeoutLabel.textContent = takeoutSlider.max;
+        }
+    });
+
+    takeoutSlider.addEventListener('input', function() { takeoutLabel.textContent = this.value; });
+
+    buildBtn.addEventListener('click', function() {
+        const randomMessage = wittyMessages[Math.floor(Math.random() * wittyMessages.length)];
+        resultsContainer.innerHTML = `<div class="text-center card p-3"><p class="lead">${randomMessage}</p><div class="spinner-border text-primary" role="status"></div></div>`;
+        buildBtn.disabled = true;
+
+        const mealSlotsToPlan = Array.from(document.querySelectorAll('#meal-slots-selection input:checked')).map(cb => cb.value);
+        if (mealSlotsToPlan.length === 0) {
+            alert("Please select at least one meal to plan.");
+            buildBtn.disabled = false;
+            resultsContainer.innerHTML = '';
+            return;
+        }
+
+        const payload = {
+            duration: durationSelector.value,
+            theme: document.getElementById('plan-theme').value,
+            use_pantry: document.getElementById('use-pantry').checked,
+            focus_favorites: document.getElementById('focus-favorites').checked,
+            takeout_days: takeoutSlider.value,
+            month: document.getElementById('plan-month').value,
+            year: document.getElementById('plan-year').value,
+            meal_slots: mealSlotsToPlan
+        };
+
+        fetch('/api/build-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                 resultsContainer.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+            } else {
+                displayPlan(data);
+            }
+        })
+        .catch(error => {
+            resultsContainer.innerHTML = `<div class="alert alert-danger">An network error occurred. Please try again.</div>`;
+        })
+        .finally(() => { buildBtn.disabled = false; });
+    });
+    
+    resultsContainer.addEventListener('click', function(e) {
+        const saveBtn = e.target.closest('#save-ai-plan-btn');
+        const editBtn = e.target.closest('.edit-meal-btn');
+
+        if (saveBtn) {
+            const finalPlanData = originalGeneratedPlan;
+            if (!finalPlanData) return;
+            let confirmMessage = `This will save the generated plan. Any existing meals for the selected period will be replaced.`;
+            if (confirm(confirmMessage)) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                fetch('/api/save-ai-plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(finalPlanData)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success) { window.location.href = data.redirect_url; } 
+                    else {
+                        alert('Error saving plan: ' + data.error);
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save This Plan';
+                    }
+                });
+            }
+        } else if (editBtn) {
+            currentEditingTarget = editBtn.dataset;
+            const titleDate = (currentEditingTarget.day.length > 2) ? currentEditingTarget.day : new Date(currentEditingTarget.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+            const modalTitle = `Edit ${currentEditingTarget.slot} for ${titleDate}`;
+            document.getElementById('editMealModalTitle').textContent = modalTitle;
+            populateEditModal();
+            $('#editMealModal').modal('show');
+        }
+    });
+
+    function populateEditModal(filter = '') {
+        const listContainer = document.getElementById('modal-recipe-list');
+        listContainer.innerHTML = '';
+        const lowerFilter = filter.toLowerCase();
+
+        const customItems = ['Leftovers', 'Takeout Night'];
+        customItems.forEach(itemName => {
+             const btn = document.createElement('button');
+             btn.className = 'btn btn-outline-secondary btn-block text-left mb-2';
+             btn.textContent = itemName;
+             btn.onclick = () => selectRecipeForMobile({id: null, name: itemName});
+             listContainer.appendChild(btn);
+        });
+
+        for (const mealType in allRecipesForJs) {
+            const filteredRecipes = allRecipesForJs[mealType].filter(r => r.name.toLowerCase().includes(lowerFilter));
+            if (filteredRecipes.length > 0) {
+                const header = document.createElement('h6');
+                header.className = "mt-3";
+                header.textContent = mealType;
+                listContainer.appendChild(header);
+                filteredRecipes.forEach(recipe => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-outline-primary btn-block text-left mb-2';
+                    btn.textContent = recipe.name;
+                    btn.onclick = () => selectRecipeForMobile(recipe);
+                    listContainer.appendChild(btn);
+                });
+            }
+        }
+    }
+
+    function selectRecipeForMobile(recipe) {
+        if (!currentEditingTarget || !originalGeneratedPlan) return;
+        
+        const { date, day, slot } = currentEditingTarget;
+        
+        document.getElementById(`meal-${date}-${slot}`).textContent = recipe.name;
+
+        const dayKey = (originalGeneratedPlan.duration === 'week') ? day : new Date(date + 'T00:00:00').getDate().toString();
+
+        if (originalGeneratedPlan.plan[dayKey]) {
+            originalGeneratedPlan.plan[dayKey][slot] = { id: recipe.id, name: recipe.name };
+        }
+        
+        $('#editMealModal').modal('hide');
+    }
+
+    document.getElementById('modal-recipe-search').addEventListener('input', function() {
+        populateEditModal(this.value);
+    });
+});
+</script>
+{% endblock %}

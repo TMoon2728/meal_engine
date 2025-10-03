@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Edit Saved Meal: {{ saved_meal.name }}</h1>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <div class="form-group">
+                <label for="name">Meal Name</label>
+                <input type="text" class="form-control" id="name" name="name" value="{{ saved_meal.name }}" required>
+            </div>
+            <hr>
+            <div class="form-group">
+                <label>Select the recipes to include in this meal:</label>
+                <div style="height: 400px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">
+                    {% for recipe in all_recipes %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="recipe_ids" value="{{ recipe.id }}" id="recipe-{{ recipe.id }}" {% if recipe.id in current_recipe_ids %}checked{% endif %}>
+                        <label class="form-check-label" for="recipe-{{ recipe.id }}">
+                            {{ recipe.name }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <hr>
+            <a href="{{ url_for('saved_meals') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

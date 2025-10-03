@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid">
+  <div class="text-center mb-4">
+    <h1 class="display-4">Welcome, {{ culinary_title }} {{ current_user.email.split('@')[0] }}!</h1>
+    <p class="lead">Here's your dashboard for the day.</p>
+  </div>
+
+  <div class="row">
+    
+    <div class="col-12 col-lg-5 d-flex flex-column order-1 order-lg-2 mb-4">
+      <div class="card flex-grow-1">
+        <div class="card-header text-center">
+          <h3 class="my-0"><i class="fas fa-calendar-check"></i> Dinner Tonight</h3>
+        </div>
+        <div class="card-body text-center d-flex flex-column justify-content-center">
+          {% if todays_meal_plan %}
+            {% if todays_meal_plan.recipe %}
+              <p class="text-muted">On the plan for tonight:</p>
+              <h4 class="card-title">{{ todays_meal_plan.recipe.name }}</h4>
+              <p class="card-text">{{ todays_meal_plan.recipe.instructions|truncate(150) }}</p>
+              <a href="{{ url_for('main.view_recipe', recipe_id=todays_meal_plan.recipe.id) }}" class="btn btn-secondary mt-2">View Full Recipe</a>
+            {% elif todays_meal_plan.custom_item_name %}
+              <h4 class="card-title">{{ todays_meal_plan.custom_item_name }}</h4>
+              <p class="card-text">A custom item is planned. Enjoy!</p>
+            {% endif %}
+          {% else %}
+            <h4 class="card-title">Nothing is planned for dinner tonight!</h4>
+            <a href="{{ url_for('main.meal_plan') }}" class="btn btn-primary btn-lg mt-2">Plan Tonight's Dinner</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-12 col-md-6 col-lg-3 d-flex flex-column order-2 order-lg-1 mb-4">
+      <div class="card">
+        <div class="card-header text-center">
+          <h5 class="my-0"><i class="fas fa-chart-bar"></i> Kitchen Stats</h5>
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Total Recipes
+                    <span class="badge badge-primary badge-pill">{{ kitchen_stats.total_recipes }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Pantry Items
+                    <span class="badge badge-primary badge-pill">{{ kitchen_stats.pantry_items }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Favorite Recipes
+                    <span class="badge badge-danger badge-pill">{{ kitchen_stats.favorite_recipes }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Recipes You Can Make
+                    <span class="badge badge-success badge-pill">{{ kitchen_stats.recipes_can_make }}</span>
+                </li>
+                 <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Items to Buy
+                    <span class="badge badge-warning badge-pill">{{ kitchen_stats.items_to_buy }}</span>
+                </li>
+            </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-4 d-flex flex-column order-3 order-lg-3 mb-4">
+       <div class="card flex-grow-1">
+        <div class="card-header text-center">
+          <h5 class="my-0"><i class="fas fa-magic"></i> Culinary Alchemist</h5>
+        </div>
+        <div class="card-body d-flex flex-column">
+           <p class="text-center text-muted small mt-0">List ingredients you have on hand, and the AI will invent a recipe for you!</p>
+          <div class="form-group flex-grow-1 d-flex flex-column">
+            <textarea id="fridge-ingredients" class="form-control flex-grow-1" placeholder="e.g., chicken breast, 1 onion, half a bell pepper, soy sauce..."></textarea>
+          </div>
+          <div class="text-center">
+            <button id="generate-recipe-btn" class="btn btn-primary">Generate Recipe</button>
+          </div>
+          <div id="fridge-result-box" class="mt-3 p-2" style="background-color: #f8f9fa; border-radius: 8px; display: none; white-space: pre-wrap; font-size: 0.9rem; max-height: 200px; overflow-y: auto;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-12 col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-center">
+                <h5 class="my-0"><i class="fas fa-trophy"></i> Your Top Recipes</h5>
+            </div>
+            <div class="card-body">
+                {% if most_made_recipes %}
+                    <ul class="list-group list-group-flush">
+                        {% for recipe, count in most_made_recipes %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('main.view_recipe', recipe_id=recipe.id) }}">{{ recipe.name }}</a>
+                                <span class="badge badge-secondary badge-pill">{{ count }} time(s)</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-center text-muted">Start planning meals to see your most-made recipes here!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4 mb-4">
+      <div class="card h-100">
+        <a href="{{ url_for('main.meal_plan') }}" class="text-dark">
+          <div class="card-header text-center">
+            <h5 class="my-0"><i class="fas fa-chart-pie"></i> This Week's Nutrition</h5>
+          </div>
+        </a>
+        <div class="card-body">
+          <p class="text-muted small text-center">Consumed vs. Scheduled</p>
+          {% for nutrient in ['calories', 'protein', 'fat', 'carbs'] %}
+            {% set scheduled_val = weekly_stats.scheduled[nutrient] %}
+            {% set consumed_val = weekly_stats.consumed[nutrient] %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between">
+                <strong>{{ nutrient|capitalize }}</strong>
+                <span>{{ (consumed_val)|default(0)|round|int }} / {{ (scheduled_val)|default(0)|round|int }} {{ 'g' if nutrient != 'calories' else '' }}</span>
+              </div>
+              {% set percentage = (consumed_val / scheduled_val * 100) if scheduled_val > 0 else 0 %}
+              <div class="progress" style="height: 20px;">
+                <div class="progress-bar" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_val|default(0) }}" aria-valuemin="0" aria-valuemax="{{ scheduled_val|default(1) }}"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+     <div class="col-12 col-lg-4 mb-4">
+       <div class="card h-100">
+        <a href="{{ url_for('main.monthly_plan') }}" class="text-dark">
+          <div class="card-header text-center">
+            <h5 class="my-0"><i class="fas fa-calendar-alt"></i> This Month's Nutrition</h5>
+          </div>
+        </a>
+        <div class="card-body">
+          <p class="text-muted small text-center">Consumed vs. Scheduled for {{ g.current_month_name }}</p>
+           {% for nutrient in ['calories', 'protein', 'fat', 'carbs'] %}
+            {% set scheduled_val = monthly_stats.scheduled[nutrient] %}
+            {% set consumed_val = monthly_stats.consumed[nutrient] %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between">
+                <strong>{{ nutrient|capitalize }}</strong>
+                <span>{{ (consumed_val)|default(0)|round|int }} / {{ (scheduled_val)|default(0)|round|int }} {{ 'g' if nutrient != 'calories' else '' }}</span>
+              </div>
+              {% set percentage = (consumed_val / scheduled_val * 100) if scheduled_val > 0 else 0 %}
+              <div class="progress" style="height: 20px;">
+                <div class="progress-bar bg-secondary" role="progressbar" style="width: {{ percentage }}%;" aria-valuenow="{{ consumed_val|default(0) }}" aria-valuemin="0" aria-valuemax="{{ scheduled_val|default(1) }}"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const generateBtn = document.getElementById('generate-recipe-btn');
+    const fridgeIngredients = document.getElementById('fridge-ingredients');
+    const fridgeResultBox = document.getElementById('fridge-result-box');
+
+    const wittyMessages = [
+        'Mixing potions in the digital cauldron...',
+        'Inventing a dish never seen before...',
+        'Seeing if pickles and chocolate actually work...',
+        'Dusting off the ancient cookbook...',
+        'Summoning the spirit of a master chef...',
+        'Running culinary simulations...',
+    ];
+
+    generateBtn.addEventListener('click', function() {
+        fridgeResultBox.style.display = 'block';
+        const randomMessage = wittyMessages[Math.floor(Math.random() * wittyMessages.length)];
+        fridgeResultBox.textContent = `🧠 ${randomMessage}`;
+
+        const data = { ingredients: fridgeIngredients.value };
+        fetch("{{ url_for('api.generate_from_ingredients_api') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if(result.error) { fridgeResultBox.textContent = `Error: ${result.error}`; } 
+            else { fridgeResultBox.textContent = result.generated_recipe; }
+        })
+        .catch(error => {
+            fridgeResultBox.textContent = 'An error occurred. Please try again.';
+            console.error('Error:', error);
+        });
+    });
+});
+</script>
+{% endblock %}

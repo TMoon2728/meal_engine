@@ -1,0 +1,121 @@
+/* static/css/monthly_plan.css */
+
+/* --- Header for Monthly Navigation --- */
+.monthly-plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.monthly-plan-header h1 {
+    margin: 0;
+    text-align: center;
+    min-width: 250px;
+}
+
+/* --- Main Calendar Grid --- */
+.monthly-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-top: 2px solid #dee2e6;
+    border-left: 2px solid #dee2e6;
+    min-height: 80vh;
+}
+
+/* Style for the day headers (Monday, Tuesday, etc.) */
+.calendar-header {
+    font-weight: 600;
+    text-align: center;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    border-right: 2px solid #dee2e6;
+}
+
+/* Style for each individual day cell */
+.calendar-day {
+    min-height: 120px;
+    padding: 0.5rem;
+    border-right: 2px solid #dee2e6;
+    border-bottom: 2px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* THIS IS THE FIX: The conflicting 'overflow: hidden;' rule has been removed. */
+}
+
+.calendar-day .day-number {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+/* Fade out days that aren't part of the current month */
+.not-current-month {
+    background-color: #f8f9fa;
+    color: #adb5bd;
+}
+
+.meals {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+/* Styles for the clickable meal items */
+.meal-link {
+    text-decoration: none !important;
+    color: inherit;
+    display: block;
+}
+
+.meal-link .meal-item:hover {
+    background-color: #d1e3ff;
+    border-color: var(--primary-blue);
+    cursor: pointer;
+}
+
+.meal-item {
+    font-size: 0.8rem;
+    padding: 3px 5px 3px 18px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    position: relative;
+    line-height: 1.2;
+    white-space: normal;
+    word-break: break-word;
+    border: 1px solid transparent;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Differentiate non-clickable custom items */
+.meal-item.meal-type-custom {
+    font-style: italic;
+    background-color: #f1f3f5;
+    color: #5a6a7a;
+}
+.meal-item.meal-type-custom::before {
+    background-color: #adb5bd !important;
+}
+
+/* The colored dots */
+.meal-item::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 7px;
+    transform: translateY(0);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+/* Colors for different meal types */
+.meal-item.meal-type-breakfast::before { background-color: #1abc9c; } /* Teal */
+.meal-item.meal-type-lunch::before { background-color: #2ecc71; } /* Green */
+.meal-item.meal-type-dinner {
+    background-color: #e9f2ff;
+    color: #2c3e50;
+    font-weight: 600;
+}
+.meal-item.meal-type-dinner::before { background-color: var(--primary-blue); } /* Blue */
+.meal-item.meal-type-snack::before { background-color: #ffc107; } /* Yellow */

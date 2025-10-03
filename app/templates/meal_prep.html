@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1 class="mb-3"><i class="fas fa-box-open"></i> Meal Prep Planner</h1>
+
+<div class="row">
+    <!-- Left Column: Recipe Selection Form -->
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header">
+                <h5>1. Select Recipes to Prep</h5>
+            </div>
+            <div class="card-body">
+                <!-- Search Form -->
+                <form method="GET" action="{{ url_for('meal_prep') }}" class="mb-3">
+                    <div class="input-group">
+                        <input type="text" name="query" class="form-control" placeholder="Search prep recipes..." value="{{ query or '' }}">
+                        <div class="input-group-append">
+                            <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
+                        </div>
+                    </div>
+                </form>
+
+                <p class="text-muted">Choose recipes and enter the total servings you want to make for each.</p>
+                <form method="POST">
+                    <div style="height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+                        {% if recipes %}
+                            {% for recipe in recipes %}
+                            <div class="form-group d-flex align-items-center">
+                                <div class="form-check flex-grow-1">
+                                    <input class="form-check-input" type="checkbox" name="recipe_ids" value="{{ recipe.id }}" id="recipe-{{ recipe.id }}">
+                                    <label class="form-check-label" for="recipe-{{ recipe.id }}">
+                                        <strong>{{ recipe.name }}</strong>
+                                        <small class="d-block text-muted">Original Servings: {{ recipe.servings or 'N/A' }}</small>
+                                    </label>
+                                </div>
+                                <input type="number" name="servings-{{ recipe.id }}" class="form-control" style="width: 80px;" placeholder="Servings" min="1">
+                            </div>
+                            <hr>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-center text-muted">No recipes found. Try a different search.</p>
+                        {% endif %}
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg btn-block mt-3">Generate Prep Plan</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Results -->
+    <div class="col-md-7">
+        {% if selected_recipes_details %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>2. Review Your Prep Plan</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    Based on your selection of: 
+                    <strong>
+                    {% for item in selected_recipes_details %}
+                        {{ item.servings }} serving(s) of {{ item.recipe_name }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                    </strong>
+                </p>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+             <div class="card-header">
+                <h5>3. Total Ingredients Required</h5>
+            </div>
+            <div class="card-body">
+                <p>This is the combined list of all ingredients you will need for this prep session.</p>
+                <ul class="list-group">
+                    {% for (name, unit), qty in total_ingredients.items() %}
+                    <li class="list-group-item">
+                        <strong>{{ "%.2f"|format(qty) }}</strong> {{ unit or '' }} of <strong>{{ name }}</strong>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>4. Estimated Nutritional Totals (Entire Session)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Total Calories
+                        <span class="badge badge-primary badge-pill">{{ total_nutrition.calories|round|int }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Total Protein
+                        <span class="badge badge-primary badge-pill">{{ total_nutrition.protein|round|int }} g</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Total Fat
+                        <span class="badge badge-primary badge-pill">{{ total_nutrition.fat|round|int }} g</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Total Carbs
+                        <span class="badge badge-primary badge-pill">{{ total_nutrition.carbs|round|int }} g</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- THE FIX IS HERE: We now use a script to populate the form -->
+        <form action="{{ url_for('send_prep_to_meal_plan') }}" method="POST">
+            <!-- The input is now empty, we will fill it with the script below -->
+            <input type="hidden" name="prep_data" id="prep-data-input" value="">
+            <button type="submit" class="btn btn-success btn-lg btn-block mt-3">
+                <i class="fas fa-calendar-check"></i> Add to Today's Plan & Shopping List
+            </button>
+        </form>
+
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center text-muted">
+                <p class="lead">Your prep plan results will appear here.</p>
+                <i class="fas fa-arrow-left fa-2x"></i>
+                <p class="mt-2">Select recipes and servings on the left and click "Generate" to begin.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- This script runs only when there are results to be sent -->
+{% if selected_recipes_details %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Take the data from Jinja and make it a valid JavaScript object.
+        const prepData = {{ selected_recipes_details|tojson|safe }};
+
+        // 2. Convert the JavaScript object back into a perfect JSON string.
+        const prepDataString = JSON.stringify(prepData);
+
+        // 3. Find the hidden input field and set its value to our perfect string.
+        document.getElementById('prep-data-input').value = prepDataString;
+    });
+</script>
+{% endif %}
+
+{% endblock %}

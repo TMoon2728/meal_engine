@@ -1,0 +1,122 @@
+/* static/css/print.css */
+
+@media print {
+    @page {
+        size: landscape;
+        margin: 0.5in;
+    }
+
+    body {
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 10pt;
+        line-height: 1.2;
+        color: #000;
+        background: #fff !important;
+    }
+
+    /* --- GLOBAL PRINT RULES --- */
+
+    .no-print {
+        display: none !important;
+    }
+    
+    .print-only-title {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 24pt;
+        font-weight: bold;
+    }
+
+    .container, .container-fluid { width: 100% !important; margin: 0 !important; padding: 0 !important; max-width: none !important; }
+    .card { border: 1px solid #aaa !important; box-shadow: none !important; page-break-inside: avoid; height: 100%; }
+    .card-header { background-color: #f0f0f0 !important; font-weight: bold; padding: 0.4rem 0.8rem; }
+    .row { display: flex !important; flex-wrap: wrap !important; }
+    a { text-decoration: none; color: #000; }
+
+    /* --- WEEKLY PLAN PRINT STYLES --- */
+    #printable-area {
+        height: 98vh; /* Encourage fitting to one page */
+    }
+    #printable-area .col-md-9 { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
+    #printable-area #calendar-column { 
+        justify-content: flex-start !important; 
+        gap: 5px 0;  /* Reduced vertical gap */
+        height: 100%;
+    }
+    #printable-area .day-column { 
+        width: 14.2% !important; /* Force 7 equal columns */
+        flex: 1 1 14.2%; 
+        padding: 2px;
+    }
+    #printable-area .day-card .card-header {
+        font-size: 10pt;
+        padding: 0.25rem;
+    }
+    #printable-area .day-card .card-body { padding: 0.5rem; }
+    #printable-area .meal-type-slot { 
+        border: none !important; 
+        min-height: 0 !important;
+        margin-bottom: 5px !important;
+        padding: 0 !important;
+    }
+    #printable-area h6.meal-type-header { font-size: 9pt; font-weight: bold; border-bottom: 1px solid #ccc; margin-bottom: 4px; }
+    #printable-area .recipe-card { 
+        border: 1px solid #eee; 
+        padding: 2px 4px; 
+        font-size: 8pt; 
+        line-height: 1.1;
+        margin-bottom: 3px;
+    }
+
+
+    /* --- MONTHLY PLAN PRINT STYLES --- */
+
+    .monthly-plan-container {
+        visibility: visible;
+    }
+    .monthly-plan-container *,
+    .print-only-title, .print-only-title * {
+        visibility: visible;
+    }
+    .monthly-plan-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .monthly-calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        border-top: 2px solid #dee2e6;
+        border-left: 2px solid #dee2e6;
+    }
+    .calendar-header {
+        font-weight: bold;
+        text-align: center;
+        padding: 0.5rem;
+        background-color: #f8f9fa !important;
+        border-bottom: 2px solid #dee2e6;
+        border-right: 2px solid #dee2e6;
+    }
+    .calendar-day {
+        min-height: 110px;
+        padding: 0.5rem;
+        border-right: 2px solid #dee2e6;
+        border-bottom: 2px solid #dee2e6;
+        display: flex;
+        flex-direction: column;
+    }
+    .day-number { font-weight: 600; }
+    .not-current-month { background-color: #f8f9fa !important; color: #adb5bd; }
+    .meal-item { font-size: 0.8rem; padding: 2px 5px 2px 18px; margin-bottom: 3px; position: relative; }
+    .meal-item::before {
+        content: ''; position: absolute; left: 5px; top: 50%;
+        transform: translateY(-50%); width: 8px; height: 8px; border-radius: 50%;
+    }
+    .meal-item.meal-type-dinner { font-weight: 600; }
+    .meal-item.meal-type-breakfast::before { background-color: #1abc9c !important; }
+    .meal-item.meal-type-lunch::before { background-color: #2ecc71 !important; }
+    .meal-item.meal-type-dinner::before { background-color: #3a7bd5 !important; }
+    .meal-item.meal-type-snack::before { background-color: #ffc107 !important; }
+}

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1>Add New Recipe</h1>
+  <form method="post">
+    <div class="form-row">
+        <div class="form-group col-md-8">
+            <label for="name">Recipe Name</label>
+            <input type="text" class="form-control" id="name" name="name" value="{{ prefill.name or '' }}" required>
+        </div>
+        <div class="form-group col-md-4">
+            <label for="meal_type">Meal Type</label>
+            <!-- UPDATED: Added "Meal Prep" as an option -->
+            <select id="meal_type" name="meal_type" class="form-control">
+                <option value="Main Course" {% if (prefill.meal_type or '').lower() == 'main course' %}selected{% endif %}>Main Course</option>
+                <option value="Side Dish" {% if (prefill.meal_type or '').lower() == 'side dish' %}selected{% endif %}>Side Dish</option>
+                <option value="Dessert" {% if (prefill.meal_type or '').lower() == 'dessert' %}selected{% endif %}>Dessert</option>
+                <option value="Snack" {% if (prefill.meal_type or '').lower() == 'snack' %}selected{% endif %}>Snack</option>
+                <option value="Meal Prep" {% if (prefill.meal_type or '').lower() == 'meal prep' %}selected{% endif %}>Meal Prep</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-group">
+        <label for="servings">Servings</label>
+        <input type="number" class="form-control" id="servings" name="servings" value="{{ prefill.servings or '' }}">
+    </div>
+    <div class="form-row">
+        <div class="form-group col-md-6">
+            <label for="prep_time">Prep Time</label>
+            <input type="text" class="form-control" id="prep_time" name="prep_time" value="{{ prefill.prep_time or '' }}">
+        </div>
+        <div class="form-group col-md-6">
+            <label for="cook_time">Cook Time</label>
+            <input type="text" class="form-control" id="cook_time" name="cook_time" value="{{ prefill.cook_time or '' }}">
+        </div>
+    </div>
+    <div class="form-group">
+      <label for="instructions">Instructions</label>
+      <textarea class="form-control" id="instructions" name="instructions" rows="10" required>{{ prefill.instructions or '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Recipe and Add Ingredients</button>
+  </form>
+{% endblock %}

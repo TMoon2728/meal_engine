@@ -1,0 +1,233 @@
+<!-- templates/view_recipe.html -->
+{% extends 'base.html' %}
+{% block content %}
+<div class="printable-content">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+    <h1>{{ recipe.name }}</h1>
+    
+    <div class="d-flex align-items-center no-print recipe-actions">
+      <i class="favorite-icon {% if recipe.is_favorite %}fas fa-heart{% else %}far fa-heart{% endif %}" 
+         data-recipe-id="{{ recipe.id }}" 
+         title="Toggle Favorite"></i>
+
+      <!-- AI Remix Dropdown -->
+      {% if current_user.subscription_plan == 'elite' or current_user.ai_credits > 0 %}
+        <div class="btn-group mx-2">
+          <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-magic"></i> AI Remix <span class="badge badge-light ml-1">1 credit</span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-right" id="remix-menu">
+              <div class="px-3 py-2">
+                  <p class="mb-2 small text-muted">Let the AI modify this recipe for you!</p>
+                  <div class="form-group">
+                      <select id="remix-type" class="form-control form-control-sm">
+                          <option value="Make it Healthier">Make it Healthier</option>
+                          <option value="Make it Gluten-Free">Make it Gluten-Free</option>
+                          <option value="Make it Vegetarian">Make it Vegetarian</option>
+                          <option value="Make it Vegan">Make it Vegan</option>
+                          <option value="Make it Dairy-Free">Make it Dairy-Free</option>
+                          <option value="Double the recipe">Double the Recipe</option>
+                          <option value="Halve the recipe">Halve the Recipe</option>
+                          <option value="Make it for a large crowd">Make it Crowd-Friendly</option>
+                          <option value="Make it for a small family">Make it Family-Friendly</option>
+                          <option value="Make it for a single person">Make a Single Serving</option>
+                          <option value="Make it for Meal Prep">Make it Meal Prep Friendly</option>
+                          <option value="Make it for Kids">Make it Kid-Friendly</option>
+                      </select>
+                  </div>
+                  <button id="remix-recipe-btn" class="btn btn-primary btn-sm btn-block">Remix!</button>
+              </div>
+          </div>
+        </div>
+      {% else %}
+        <a href="{{ url_for('pricing') }}" class="btn btn-info mx-2 disabled" title="You are out of AI credits">
+          <i class="fas fa-magic"></i> AI Remix <i class="fas fa-lock small"></i>
+        </a>
+      {% endif %}
+
+      <!-- Actions Dropdown -->
+      <div class="btn-group">
+        <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          Actions
+        </button>
+        <div class="dropdown-menu dropdown-menu-right">
+          <a class="dropdown-item" href="{{ url_for('cook_recipe', recipe_id=recipe.id) }}"><i class="fas fa-utensils"></i> Start Cooking</a>
+          <a class="dropdown-item" href="#" onclick="window.print()"><i class="fas fa-print"></i> Print Recipe</a>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" href="{{ url_for('edit_recipe', recipe_id=recipe.id) }}"><i class="fas fa-edit"></i> Edit Recipe</a>
+          <div class="dropdown-item-form">
+            <form action="{{ url_for('delete_recipe', recipe_id=recipe.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to permanently delete this recipe?');">
+                <button type="submit" class="dropdown-item-button"><i class="fas fa-trash"></i> Delete Recipe</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="star-rating-view" id="star-rating-interactive-container">
+      {% for i in range(1, 6) %}
+      <i class="star-icon {% if recipe.rating >= i %}fas{% else %}far{% endif %} fa-star" 
+         data-rating-value="{{ i }}"></i>
+      {% endfor %}
+  </div>
+
+  <p><strong>Servings:</strong> {{ recipe.servings or 'N/A' }} | <strong>Prep Time:</strong> {{ recipe.prep_time or 'N/A' }} | <strong>Cook Time:</strong> {{ recipe.cook_time or 'N/A' }}</p>
+  
+  {% if recipe.calories is not none %}
+  <div class="card bg-light p-3 my-3">
+    <h5 class="card-title mb-1">Nutritional Info (per serving)</h5>
+    <div class="card-text">
+        <strong>Calories:</strong> {{ recipe.calories|default(0, true)|round|int }} | 
+        <strong>Protein:</strong> {{ recipe.protein|default(0, true)|round|int }}g | 
+        <strong>Fat:</strong> {{ recipe.fat|default(0, true)|round|int }}g | 
+        <strong>Carbs:</strong> {{ recipe.carbs|default(0, true)|round|int }}g
+    </div>
+  </div>
+  {% endif %}
+
+  <div id="remix-results-section" style="display: none;">
+      <hr>
+      <h3><i class="fas fa-hat-wizard"></i> AI Remix Result</h3>
+      <div id="remix-result-box" class="p-3 bg-light" style="border-radius: 8px; white-space: pre-wrap;"></div>
+      <div id="save-remix-container" class="text-center my-3"></div>
+  </div>
+
+  <hr>
+  <h3><i class="fas fa-shopping-basket"></i> Ingredients</h3>
+  <ul>
+    {% for item in recipe.ingredients %}
+      <li>{{ item.quantity }} {{ item.unit }} of {{ item.ingredient.name }}</li>
+    {% endfor %}
+  </ul>
+  <hr>
+  <h3><i class="fas fa-utensils"></i> Instructions</h3>
+  <p style="white-space: pre-wrap;">{{ recipe.instructions }}</p>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentRemixData = null;
+    const favoriteIcon = document.querySelector('.favorite-icon');
+    if (favoriteIcon) {
+        favoriteIcon.addEventListener('click', function() {
+            const recipeId = this.dataset.recipeId;
+            fetch(`/api/toggle-favorite/${recipeId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_favorite) {
+                    this.classList.remove('far'); this.classList.add('fas');
+                } else {
+                    this.classList.remove('fas'); this.classList.add('far');
+                }
+            });
+        });
+    }
+
+    const remixBtn = document.getElementById('remix-recipe-btn');
+    if(remixBtn) {
+        const remixType = document.getElementById('remix-type');
+        const remixResultsSection = document.getElementById('remix-results-section');
+        const remixResultBox = document.getElementById('remix-result-box');
+        const saveRemixContainer = document.getElementById('save-remix-container');
+        remixBtn.addEventListener('click', function() {
+            remixResultsSection.style.display = 'block';
+            saveRemixContainer.innerHTML = ''; 
+            remixResultBox.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Contacting the AI assistant...';
+            
+            fetch('/api/remix-recipe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recipe_id: '{{ recipe.id }}',
+                    remix_type: remixType.value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.error) {
+                    remixResultBox.textContent = `Error: ${data.error}`;
+                    currentRemixData = null;
+                } else if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    currentRemixData = data.remixed_recipe;
+                    let displayText = `<strong>${currentRemixData.name}</strong>\n\n<strong>Ingredients:</strong>\n`;
+                    currentRemixData.ingredients.forEach(ing => {
+                        displayText += `- ${ing.quantity || ''} ${ing.unit || ''} ${ing.name}\n`;
+                    });
+                    displayText += `\n<strong>Instructions:</strong>\n${currentRemixData.instructions}`;
+                    remixResultBox.innerHTML = displayText.replace(/\n/g, '<br>');
+                    const saveBtn = document.createElement('button');
+                    saveBtn.className = 'btn btn-success';
+                    saveBtn.id = 'save-remix-btn';
+                    saveBtn.innerHTML = '<i class="fas fa-save"></i> Save as New Recipe';
+                    saveRemixContainer.appendChild(saveBtn);
+                }
+            })
+            .catch(error => {
+                remixResultBox.textContent = 'An error occurred. Please try again.';
+                console.error('Error:', error);
+                currentRemixData = null;
+            });
+        });
+        saveRemixContainer.addEventListener('click', function(e){
+            if (e.target.id === 'save-remix-btn') {
+                if (currentRemixData && confirm(`Are you sure you want to save "${currentRemixData.name}" as a new recipe?`)) {
+                    e.target.disabled = true;
+                    e.target.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                    fetch('/api/save-new-recipe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(currentRemixData)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = `/recipe/${data.recipe_id}/edit`;
+                        } else {
+                            alert('Error saving recipe: ' + data.message);
+                            e.target.disabled = false;
+                            e.target.innerHTML = '<i class="fas fa-save"></i> Save as New Recipe';
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    const starContainer = document.getElementById('star-rating-interactive-container');
+    if(starContainer){
+        const stars = starContainer.querySelectorAll('.star-icon');
+        stars.forEach(star => {
+            star.addEventListener('click', function() {
+                const rating = this.dataset.ratingValue;
+                fetch(`/api/set-rating/{{ recipe.id }}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ rating: rating })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if(data.success){
+                        stars.forEach((s, index) => {
+                            s.classList.toggle('fas', index < data.rating);
+                            s.classList.toggle('far', index >= data.rating);
+                        });
+                    }
+                });
+            });
+        });
+    }
+    const remixMenu = document.getElementById('remix-menu');
+    if (remixMenu) {
+        remixMenu.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+});
+</script>
+{% endblock %}

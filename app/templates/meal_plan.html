@@ -1,0 +1,511 @@
+{% extends 'base.html' %}
+{% block content %}
+<form method="post" id="meal-plan-form">
+    <input type="hidden" name="historical_plan_name" id="historical-plan-name-input">
+    <input type="hidden" name="week_start_date" value="{{ start_of_week.strftime('%Y-%m-%d') }}">
+    
+    <div id="dynamic-hidden-inputs"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap no-print">
+        
+        <div class="mr-auto">
+             <h1 class="mb-0">
+                <i class="fas fa-calendar-alt"></i> Meal Plan
+                <small class="d-block text-muted" style="font-size: 1rem;">Week of {{ start_of_week.strftime('%B %d, %Y') }}</small>
+            </h1>
+        </div>
+        
+        <div class="d-flex align-items-center">
+            <div class="btn-group mr-2">
+                <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Actions
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                    <button type="button" class="dropdown-item" onclick="window.print()"><i class="fas fa-print"></i> Print Plan</button>
+                    <button type="button" class="dropdown-item" id="save-historical-btn"><i class="fas fa-save"></i> Save as Template</button>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item dropdown-toggle" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fas fa-history"></i> Load Template</a>
+                     <div class="dropdown-menu dropdown-menu-right">
+                        {% for plan in historical_plans %}
+                        <a class="dropdown-item load-historical-plan-btn" href="#" data-plan-id="{{ plan.id }}">{{ plan.name }}</a>
+                        {% else %}
+                        <span class="dropdown-item-text">No saved historical plans.</span>
+                        {% endfor %}
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="{{ url_for('main.manage_plans') }}"><i class="fas fa-cog"></i> Manage Templates...</a>
+                    </div>
+                    <button type="button" class="dropdown-item" id="clear-plan-btn"><i class="fas fa-trash-alt"></i> Clear Plan</button>
+                </div>
+            </div>
+
+            <div class="btn-group mr-2">
+                <a href="{{ url_for('main.meal_plan', start_date=prev_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">&laquo;</a>
+                <a href="{{ url_for('main.meal_plan') }}" class="btn btn-secondary">Today</a>
+                <button class="btn btn-secondary" type="button" id="date-picker-trigger" title="Go to date..."><i class="fas fa-calendar-alt"></i></button>
+                <input type="text" id="date-picker-input" style="display: none;">
+                <a href="{{ url_for('main.meal_plan', start_date=next_week_start.strftime('%Y-%m-%d')) }}" class="btn btn-secondary">&raquo;</a>
+            </div>
+            
+            <button type="submit" id="save-plan-btn" class="btn btn-primary"><i class="fas fa-check"></i> Apply Changes</button>
+        </div>
+    </div>
+    
+    <div id="printable-area">
+        <h1 class="print-only-title" style="display:none;">Meal Plan - Week of {{ start_of_week.strftime('%B %d, %Y') }}</h1>
+        
+        <div class="row">
+            <div class="col-md-2 no-print d-none d-md-block">
+                <div class="sticky-top" style="top: 1rem;">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-utensils"></i> Recipe Tray</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex mb-3">
+                                <input type="search" id="recipe-search" class="form-control" placeholder="Search...">
+                                <button type="button" id="suggest-recipes-btn" class="btn btn-secondary ml-2 flex-shrink-0" title="Suggest"><i class="fas fa-random"></i></button>
+                            </div>
+                            <div class="nav nav-tabs" id="recipeTypeTab" role="tablist">
+                                <a class="nav-item nav-link active col-6 text-center" data-toggle="tab" href="#main-tray">Mains</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#side-tray">Sides</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#dessert-tray">Desserts</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#snack-tray">Snacks</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#prep-tray">Meal Prep</a>
+                                <a class="nav-item nav-link col-6 text-center" data-toggle="tab" href="#saved-meals-tab">Saved Meals</a>
+                            </div>
+                            <div class="tab-content pt-3" id="recipe-tray-container">
+                                <div class="tab-pane fade show active" id="main-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="side-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="dessert-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="snack-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="prep-tray" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                                <div class="tab-pane fade" id="saved-meals-tab" role="tabpanel"><div class="sortable-list recipe-tray" style="min-height: 50px;"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-10"> 
+                <div class="row no-print mb-4">
+                    <div class="col-12 col-md-4 mb-4 d-flex">
+                        <div class="card w-100">
+                            <div class="card-header text-center"><h5 class="mb-0">Weekly Summary</h5></div>
+                            <div class="card-body text-center">
+                                 <div class="row">
+                                    <div class="col-6 border-right">
+                                        <p class="mb-0 text-muted"><strong>Scheduled</strong></p>
+                                        <h4 class="mb-0">{{ (weekly_stats.scheduled.calories|round|int) if weekly_stats.scheduled.calories is not none else 0 }}</h4>
+                                    </div>
+                                    <div class="col-6">
+                                        <p class="mb-0 text-muted"><strong>Consumed</strong></p>
+                                        <h4 class="mb-0">{{ (weekly_stats.consumed.calories|round|int) if weekly_stats.consumed.calories is not none else 0 }}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4 mb-4 d-flex">
+                        <div class="card w-100">
+                            <div class="card-header text-center"><h5 class="mb-0">Daily Calories</h5></div>
+                            <div class="card-body d-flex align-items-center">
+                                <div class="row text-center w-100">
+                                    {% for day in days %}
+                                        <div class="col p-0">
+                                            <strong>{{ day.strftime('%a') }}</strong><br>
+                                            <h4 class="mb-0 font-weight-normal">{{ (daily_stats[day.strftime('%Y-%m-%d')].scheduled.calories|round|int) if daily_stats[day.strftime('%Y-%m-%d')].scheduled.calories is not none else 0 }}</h4>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4 mb-4 d-flex">
+                        <div class="card w-100">
+                            <div class="card-header text-center"><h5 class="mb-0"><i class="fas fa-plus-circle"></i> Custom Items</h5></div>
+                            <div class="card-body">
+                                <p class="small text-muted mb-2">Add takeout, leftovers, etc.</p>
+                                <div class="input-group mb-2">
+                                    <input type="text" id="custom-item-input" class="form-control" placeholder="e.g., Pizza">
+                                    <div class="input-group-append"><button class="btn btn-outline-secondary" type="button" id="add-custom-item-btn">+</button></div>
+                                </div>
+                                <div id="custom-item-tray" class="sortable-list recipe-tray" style="min-height: 38px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-none d-md-flex flex-wrap" id="calendar-column">
+                    {% for day in days %}
+                    {% set day_str = day.strftime('%Y-%m-%d') %}
+                    <div class="day-column">
+                        <div class="card day-card" data-day-str="{{ day_str }}">
+                            <div class="card-header text-center">{{ day.strftime('%A') }} <br> <small>{{ day.strftime('%B %d') }}</small></div>
+                            <div class="card-body day-card-body">
+                                {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
+                                {% set slot_eaten = planned_meals[day_str] and planned_meals[day_str][slot] and planned_meals[day_str][slot][0].is_eaten %}
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="meal-type-header">{{ slot }}</h6>
+                                    <button type="button" class="btn btn-sm meal-eaten-btn no-print {% if slot_eaten %}btn-success{% else %}btn-outline-secondary{% endif %}" 
+                                            data-date="{{ day_str }}" data-slot="{{ slot }}" 
+                                            title="Mark as Eaten for Nutrition Tracking">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </div>
+                                <div class="meal-type-slot sortable-list" data-date="{{ day_str }}" data-slot="{{ slot }}">
+                                    {% if planned_meals[day_str] and planned_meals[day_str][slot] %}
+                                        {% for meal in planned_meals[day_str][slot] %}
+                                            {% if meal.recipe_id %}
+                                                <div class="recipe-card meal-type-{{ meal.recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ meal.recipe.id }}" data-meal-type="{{ meal.recipe.meal_type }}">{{ meal.recipe.name }}<span class="remove-recipe-btn no-print">×</span></div>
+                                            {% elif meal.custom_item_name %}
+                                                <div class="recipe-card meal-type-custom" data-item-name="{{ meal.custom_item_name }}">{{ meal.custom_item_name }}<span class="remove-recipe-btn no-print">×</span></div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="d-md-none" id="mobile-plan-view">
+                    {% for day in days %}
+                        {% set day_str = day.strftime('%Y-%m-%d') %}
+                        <div class="card mb-2">
+                            <div class="card-header" id="heading-{{ day_str }}">
+                                <h5 class="mb-0">
+                                    <button class="btn btn-link btn-block text-left d-flex justify-content-between align-items-center" type="button" data-toggle="collapse" data-target="#collapse-{{ day_str }}">
+                                        <span>{{ day.strftime('%A, %B %d') }}</span>
+                                        <span class="badge badge-primary badge-pill">{{ (daily_stats[day_str].scheduled.calories|round|int) if daily_stats[day_str].scheduled.calories is not none else 0 }} Cal</span>
+                                    </button>
+                                </h5>
+                            </div>
+                            <div id="collapse-{{ day_str }}" class="collapse {% if day.strftime('%Y-%m-%d') == today.strftime('%Y-%m-%d') %}show{% endif %}" data-parent="#mobile-plan-view">
+                                <div class="card-body">
+                                    {% for slot in ['Breakfast', 'Lunch', 'Dinner', 'Snack'] %}
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6>{{ slot }}</h6>
+                                        </div>
+                                        <div class="meal-type-slot mobile-slot" data-date="{{ day_str }}" data-slot="{{ slot }}">
+                                            {% if planned_meals[day_str] and planned_meals[day_str][slot] %}
+                                                {% for meal in planned_meals[day_str][slot] %}
+                                                    {% if meal.recipe_id %}
+                                                        <div class="recipe-card meal-type-{{ meal.recipe.meal_type|lower|replace(' ', '-') }}" data-recipe-id="{{ meal.recipe.id }}" data-meal-type="{{ meal.recipe.meal_type }}">{{ meal.recipe.name }}<span class="remove-recipe-btn no-print">×</span></div>
+                                                    {% elif meal.custom_item_name %}
+                                                        <div class="recipe-card meal-type-custom" data-item-name="{{ meal.custom_item_name }}">{{ meal.custom_item_name }}<span class="remove-recipe-btn no-print">×</span></div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="modal fade" id="addRecipeModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">Add to Plan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="search" id="modal-recipe-search" class="form-control mb-3" placeholder="Search recipes...">
+        <div id="modal-recipe-list">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const allRecipesForJs = {{ recipes_for_js | tojson }};
+        const initialTrayRecipes = {{ initial_tray_recipes_js | default({}) | tojson }};
+        let allSavedMeals = [];
+        const saveButton = document.getElementById('save-plan-btn');
+        const mealPlanForm = document.getElementById('meal-plan-form');
+        let currentMobileSlot = null;
+
+        function markPlanAsChanged() {
+            saveButton.disabled = false;
+        }
+
+        function createCard(item, includeRemoveButton = true) {
+            const card = document.createElement('div');
+            let itemTypeClass = 'custom';
+            if (item.type === 'recipe' && item.meal_type) {
+                itemTypeClass = item.meal_type.toLowerCase().replace(/ /g, '-');
+            }
+            card.className = `recipe-card meal-type-${itemTypeClass}`;
+            if (item.type === 'recipe') {
+                card.dataset.recipeId = item.id;
+                card.dataset.mealType = item.meal_type;
+            } else {
+                card.dataset.itemName = item.name;
+            }
+            card.textContent = item.name;
+            if (includeRemoveButton) {
+                const removeBtn = document.createElement('span');
+                removeBtn.className = 'remove-recipe-btn no-print';
+                removeBtn.innerHTML = '×';
+                card.appendChild(removeBtn);
+            }
+            return card;
+        }
+        
+        function renderRecipeTray(recipes) {
+            const CATEGORY_TO_ID_MAP = {
+                'Main Course': 'main-tray', 'Side Dish': 'side-tray',
+                'Dessert': 'dessert-tray', 'Snack': 'snack-tray', 'Meal Prep': 'prep-tray'
+            };
+            for (const mealType in recipes) {
+                const trayId = CATEGORY_TO_ID_MAP[mealType];
+                if (trayId) {
+                    const targetTray = document.querySelector(`#${trayId} .recipe-tray`);
+                    if (targetTray) {
+                        targetTray.innerHTML = '';
+                        recipes[mealType].forEach(recipe => {
+                            const card = createCard({ type: 'recipe', ...recipe }, false);
+                            card.classList.add('recipe-tray-item');
+                            targetTray.appendChild(card);
+                        });
+                    }
+                }
+            }
+        }
+
+        function initializeDesktopDragDrop() {
+            document.querySelectorAll('.sortable-list').forEach(list => {
+                new Sortable(list, {
+                    group: { name: 'shared-group', pull: 'clone', put: true },
+                    animation: 150,
+                    sort: true,
+                    onAdd: function(evt) {
+                        const droppedItem = evt.item;
+                        const targetSlot = evt.to;
+                        if (droppedItem.dataset.savedMealId) {
+                            const savedMeal = allSavedMeals.find(m => m.id === parseInt(droppedItem.dataset.savedMealId));
+                            if (savedMeal && savedMeal.recipes) {
+                                savedMeal.recipes.forEach(recipe => {
+                                    targetSlot.appendChild(createCard({ type: 'recipe', ...recipe }));
+                                });
+                            }
+                            droppedItem.remove();
+                        } else if (!droppedItem.querySelector('.remove-recipe-btn')) {
+                            const removeBtn = document.createElement('span');
+                            removeBtn.className = 'remove-recipe-btn no-print';
+                            removeBtn.innerHTML = '×';
+                            droppedItem.appendChild(removeBtn);
+                        }
+                        markPlanAsChanged();
+                    },
+                    onRemove: () => markPlanAsChanged(),
+                    onUpdate: () => markPlanAsChanged()
+                });
+            });
+        }
+
+        document.querySelectorAll('.mobile-slot').forEach(slot => {
+            slot.addEventListener('click', function(e) {
+                if (e.target.classList.contains('remove-recipe-btn')) {
+                    e.target.closest('.recipe-card').remove();
+                    markPlanAsChanged();
+                    return;
+                }
+                if (e.target.closest('.recipe-card')) return;
+                currentMobileSlot = this;
+                populateModalRecipeList();
+                $('#addRecipeModal').modal('show');
+            });
+        });
+
+        function populateModalRecipeList(filter = '') {
+            const listContainer = document.getElementById('modal-recipe-list');
+            listContainer.innerHTML = '';
+            const lowerFilter = filter.toLowerCase();
+            document.querySelectorAll('#custom-item-tray .recipe-card').forEach(item => {
+                const itemName = item.dataset.itemName;
+                if (itemName.toLowerCase().includes(lowerFilter)) {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-outline-secondary btn-block text-left mb-2';
+                    btn.textContent = itemName;
+                    btn.onclick = () => addCustomItemToMobileSlot(itemName);
+                    listContainer.appendChild(btn);
+                }
+            });
+            for (const mealType in allRecipesForJs) {
+                const filtered = allRecipesForJs[mealType].filter(r => r.name.toLowerCase().includes(lowerFilter));
+                if (filtered.length > 0) {
+                    const header = document.createElement('h6');
+                    header.className = "mt-3";
+                    header.textContent = mealType;
+                    listContainer.appendChild(header);
+                    filtered.forEach(recipe => {
+                        const btn = document.createElement('button');
+                        btn.className = 'btn btn-outline-primary btn-block text-left mb-2';
+                        btn.textContent = recipe.name;
+                        btn.onclick = () => addRecipeToMobileSlot(recipe);
+                        listContainer.appendChild(btn);
+                    });
+                }
+            }
+        }
+        
+        function addRecipeToMobileSlot(recipe) {
+            if (currentMobileSlot) {
+                currentMobileSlot.appendChild(createCard({ type: 'recipe', ...recipe }));
+                markPlanAsChanged();
+                $('#addRecipeModal').modal('hide');
+            }
+        }
+        function addCustomItemToMobileSlot(itemName) {
+            if (currentMobileSlot) {
+                currentMobileSlot.appendChild(createCard({ type: 'custom', name: itemName }));
+                markPlanAsChanged();
+                $('#addRecipeModal').modal('hide');
+            }
+        }
+        
+        document.getElementById('modal-recipe-search').addEventListener('input', function() { populateModalRecipeList(this.value); });
+
+        mealPlanForm.addEventListener('submit', function() {
+            const container = document.getElementById('dynamic-hidden-inputs');
+            container.innerHTML = '';
+            document.querySelectorAll('.meal-type-slot').forEach(slot => {
+                const dayStr = slot.dataset.date;
+                const slotName = slot.dataset.slot;
+                slot.querySelectorAll('.recipe-card').forEach(card => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    if (card.dataset.recipeId) {
+                        input.name = `day-${dayStr}-${slotName}-recipe[]`;
+                        input.value = card.dataset.recipeId;
+                    } else if (card.dataset.itemName) {
+                        input.name = `day-${dayStr}-${slotName}-custom[]`;
+                        input.value = card.dataset.itemName;
+                    }
+                    container.appendChild(input);
+                });
+            });
+        });
+        
+        document.getElementById('add-custom-item-btn').addEventListener('click', () => {
+            const input = document.getElementById('custom-item-input');
+            if (input.value.trim()) {
+                document.getElementById('custom-item-tray').appendChild(createCard({ type: 'custom', name: input.value.trim() }, false));
+                input.value = '';
+            }
+        });
+
+        document.getElementById('clear-plan-btn').addEventListener('click', () => {
+            if (confirm("Are you sure you want to clear the entire plan for this week?")) {
+                document.querySelectorAll('.meal-type-slot').forEach(slot => slot.innerHTML = '');
+                markPlanAsChanged();
+            }
+        });
+
+        document.getElementById('save-historical-btn').addEventListener('click', () => {
+            const planName = prompt("Enter a name for this new template:", `Week of ${new Date().toLocaleDateString()}`);
+            if (planName) {
+                document.getElementById('historical-plan-name-input').value = planName;
+                mealPlanForm.submit();
+            }
+        });
+
+        document.querySelectorAll('.load-historical-plan-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+                if (!confirm("This will replace your current weekly plan. Are you sure?")) return;
+                fetch(`{{ url_for('api.load_historical_plan', plan_id=0) }}`.slice(0, -1) + e.target.dataset.planId).then(res => res.json()).then(data => {
+                    document.querySelectorAll('.meal-type-slot').forEach(slot => slot.innerHTML = '');
+                    Object.keys(data).forEach(dayIndex => {
+                        const dayStr = (document.querySelector(`.day-card[data-day-str*="-${dayIndex}"]`))?.dataset.dayStr;
+                        if(dayStr) {
+                             Object.keys(data[dayIndex]).forEach(slotName => {
+                                const targetSlot = document.querySelector(`.meal-type-slot[data-date='${dayStr}'][data-slot='${slotName}']`);
+                                if (targetSlot) data[dayIndex][slotName].forEach(item => targetSlot.appendChild(createCard(item)));
+                            });
+                        }
+                    });
+                    markPlanAsChanged();
+                    alert("Plan loaded! Click 'Apply Changes' to save.");
+                });
+            });
+        });
+        
+        document.getElementById('recipe-search').addEventListener('keyup', () => {
+            const query = document.getElementById('recipe-search').value.toLowerCase();
+            const filtered = {};
+            for (const type in allRecipesForJs) {
+                filtered[type] = allRecipesForJs[type].filter(r => r.name.toLowerCase().includes(query));
+            }
+            renderRecipeTray(filtered);
+        });
+
+        document.getElementById('suggest-recipes-btn').addEventListener('click', () => {
+            const activeTab = document.querySelector('#recipeTypeTab .nav-link.active');
+            const suggestions = {};
+            for (const mealType in allRecipesForJs) {
+                const recipes = allRecipesForJs[mealType];
+                suggestions[mealType] = recipes.length > 0 ? [...recipes].sort(() => 0.5 - Math.random()).slice(0, 10) : [];
+            }
+            renderRecipeTray(suggestions);
+            if (activeTab) $(activeTab).tab('show');
+        });
+
+        document.querySelectorAll('.meal-eaten-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                this.disabled = true; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                fetch("{{ url_for('api.mark_meal_eaten') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: this.dataset.date, slot: this.dataset.slot })
+                }).then(res => res.json()).then(result => {
+                    if (result.success) {
+                        this.classList.toggle('btn-outline-secondary', !result.is_eaten);
+                        this.classList.toggle('btn-success', result.is_eaten);
+                    }
+                }).finally(() => { this.disabled = false; this.innerHTML = '<i class="fas fa-check"></i>'; });
+            });
+        });
+
+        const fp = flatpickr("#date-picker-input", {
+            onChange: function(selectedDates) {
+                const d = selectedDates[0];
+                const day = d.getDay();
+                const diff = d.getDate() - day + (day == 0 ? -6:1);
+                const monday = new Date(d.setDate(diff));
+                window.location.href = `{{ url_for('main.meal_plan') }}?start_date=${monday.toISOString().split('T')[0]}`;
+            }
+        });
+        document.getElementById("date-picker-trigger").addEventListener("click", () => fp.open());
+        
+        (function initialize() {
+            initializeDesktopDragDrop();
+            renderRecipeTray(initialTrayRecipes);
+            fetch("{{ url_for('api.get_saved_meals') }}").then(res => res.json()).then(data => {
+                allSavedMeals = data;
+                const tray = document.querySelector('#saved-meals-tab .recipe-tray');
+                tray.innerHTML = '';
+                allSavedMeals.forEach(meal => {
+                    const card = createCard({ type: 'custom', name: meal.name }, false);
+                    card.dataset.savedMealId = meal.id;
+                    tray.appendChild(card);
+                });
+            });
+            saveButton.disabled = true;
+        })();
+    });
+</script>
+{% endblock %}

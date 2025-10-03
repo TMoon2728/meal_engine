@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1><i class="fas fa-bookmark"></i> Manage Saved Meals</h1>
+</div>
+
+<div class="card p-3 mb-4">
+    <h5 class="card-title">Create a New Saved Meal</h5>
+    <p class="card-text">Give your meal a name (e.g., "Burger Night", "Pancake Breakfast"). You'll add recipes in the next step.</p>
+    <form method="POST" action="{{ url_for('main.saved_meals') }}" class="form-inline">
+        <div class="form-group flex-grow-1 mr-2">
+            <input type="text" name="name" class="form-control w-100" placeholder="e.g., Spaghetti Dinner" required>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Create New Meal</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Your Saved Meals</h5>
+        {% if saved_meals %}
+        <ul class="list-group">
+            {% for meal in saved_meals %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>{{ meal.name }}</strong>
+                    <br>
+                    <small class="text-muted">
+                        Contains: {{ meal.recipes|map(attribute='name')|join(', ') }}
+                    </small>
+                </div>
+                <div>
+                    <a href="{{ url_for('main.edit_saved_meal', saved_meal_id=meal.id) }}" class="btn btn-secondary btn-sm"><i class="fas fa-edit"></i> Edit</a>
+                    <form action="{{ url_for('main.delete_saved_meal', saved_meal_id=meal.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this saved meal?');">
+                        <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
+                    </form>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">You haven't created any saved meals yet. Use the form above to get started!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

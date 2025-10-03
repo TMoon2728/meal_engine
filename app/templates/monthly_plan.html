@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Add a specific class to ensure popover content is styled correctly */
+    .meal-popover-content {
+        font-size: 0.9rem;
+    }
+    .meal-popover-content strong {
+        color: var(--primary-blue);
+    }
+</style>
+
+<div class="alert alert-info py-2 px-4 mb-3" role="alert" style="width: 100%; font-size: 1.05em; border-radius: 0;">
+    <strong>Tip:</strong> If your monthly plan looks empty, make sure to add recipes to your weekly planner. Monthly plans are generated from your weekly selections!
+</div>
+<div class="monthly-plan-header no-print">
+    <a href="{{ url_for('main.monthly_plan', year=nav.prev.year, month=nav.prev.month) }}" class="btn btn-secondary">&laquo; {{ nav.prev.strftime('%B') }}</a>
+    <a href="{{ url_for('main.monthly_plan') }}" class="btn btn-secondary">Current Month</a>
+    <h1>{{ nav.current.strftime('%B %Y') }}</h1>
+    <a href="{{ url_for('main.monthly_plan', year=nav.next.year, month=nav.next.month) }}" class="btn btn-secondary">{{ nav.next.strftime('%B') }} &raquo;</a>
+    <button type="button" onclick="window.print()" class="btn btn-primary"><i class="fas fa-print"></i> Print</button>
+</div>
+
+<!-- Monthly & Weekly Nutrition Summary Row -->
+<div class="row no-print mb-4">
+    <div class="col-12 col-md-6 mb-4 d-flex">
+        <div class="card w-100">
+            <div class="card-header text-center"><h5 class="mb-0">Monthly Summary</h5></div>
+            <div class="card-body text-center">
+                <div class="row">
+                    <div class="col-6 border-right">
+                        <p class="mb-0 text-muted"><strong>Scheduled Calories</strong></p>
+                        <h4 class="mb-0">{{ (monthly_stats.scheduled.calories|round|int) if monthly_stats.scheduled.calories is not none else 0 }}</h4>
+                    </div>
+                    <div class="col-6">
+                        <p class="mb-0 text-muted"><strong>Consumed Calories</strong></p>
+                        <h4 class="mb-0">{{ (monthly_stats.consumed.calories|round|int) if monthly_stats.consumed.calories is not none else 0 }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 mb-4 d-flex">
+        <div class="card w-100">
+            <div class="card-header text-center"><h5 class="mb-0">Weekly Scheduled Calories</h5></div>
+            <div class="card-body d-flex align-items-center">
+                <div class="row text-center w-100">
+                    {% for weekly_summary in weekly_summaries %}
+                    <div class="col p-1">
+                        <strong>Week {{ loop.index }}</strong><br>
+                        <h4 class="mb-0 font-weight-normal">{{ (weekly_summary.scheduled.calories|round|int) if weekly_summary.scheduled.calories is not none else 0 }}</h4>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div id="printable-area">
+    <h1 class="print-only-title" style="display:none;">Meal Plan for {{ nav.current.strftime('%B %Y') }}</h1>
+
+    <div class="monthly-plan-container">
+        <div class="monthly-calendar-grid">
+            <!-- Calendar Header -->
+            <div class="calendar-header">Mon</div>
+            <div class="calendar-header">Tue</div>
+            <div class="calendar-header">Wed</div>
+            <div class="calendar-header">Thu</div>
+            <div class="calendar-header">Fri</div>
+            <div class="calendar-header">Sat</div>
+            <div class="calendar-header">Sun</div>
+
+            <!-- Calendar Days -->
+            {% for week in calendar_data %}
+                {% for day in week %}
+                    {% set day_str = day.strftime('%Y-%m-%d') %}
+                    {% set is_current_month = day.month == nav.current.month %}
+                    {% set summary = daily_summaries[day_str] %}
+                    {% set has_meals = summary.meals|length > 0 %}
+                    
+                    <div class="calendar-day {{ 'not-current-month' if not is_current_month }} {{ 'has-meals' if has_meals }}"
+                         tabindex="0"
+                         data-toggle="popover"
+                         data-trigger="focus"
+                         title="Meals for {{ day.strftime('%B %d') }}"
+                         data-content="<div class='meal-popover-content'>{% for meal in summary.meals %}{% set parts = meal.split(': ') %}<strong>{{ parts[0] }}:</strong> {{ parts[1] }}<br>{% endfor %}{% if not has_meals %}No meals planned.{% endif %}</div>">
+                        
+                        <div class="day-number">{{ day.day }}</div>
+
+                        <!-- START: CORRECTED MEAL/CALORIE DISPLAY -->
+                        <!-- Desktop View: Shows the list of meals -->
+                        <div class="meals d-none d-md-block">
+                             {% for meal_str in summary.meals %}
+                                {% set meal_parts = meal_str.split(': ', 1) %}
+                                {% set meal_slot = meal_parts[0] %}
+                                {% set meal_name = meal_parts[1] if meal_parts|length > 1 else meal_parts[0] %}
+                                <div class="meal-item meal-type-{{ meal_slot|lower|replace(' ', '-') }}">{{ meal_name }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Mobile View: Shows the total calorie count -->
+                        <div class="day-calories d-md-none">
+                            {% if has_meals %}
+                                {{ summary.calories|round|int }} Cal
+                            {% endif %}
+                        </div>
+                        <!-- END: CORRECTED MEAL/CALORIE DISPLAY -->
+                    </div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Enable Bootstrap Popovers for the calendar days
+    $('[data-toggle="popover"]').popover({
+        html: true,
+        placement: 'auto'
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ cache_buster }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}?v={{ cache_buster }}" media="print">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly_plan.css') }}?v={{ cache_buster }}">
+    
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#3a7bd5"/>
+    
+    <title>Meal Engine</title>
+
+    <style>
+      @media (max-width: 767.98px) {
+          body { font-size: 0.95rem; }
+          h1 { font-size: 1.8rem; }
+          h2 { font-size: 1.5rem; }
+          .container-fluid { padding-left: 15px; padding-right: 15px; }
+          .form-inline { flex-direction: column; align-items: stretch; }
+          .form-inline .form-group { width: 100%; margin-right: 0 !important; margin-bottom: 10px; }
+          .form-inline .btn { width: 100%; margin-top: 10px; }
+          .recipe-actions { width: 100%; justify-content: space-between; margin-top: 1rem; }
+          .recipe-card { padding: 6px 20px 6px 10px; font-size: 0.85rem; }
+          body.page-meal-plan .col-md-2.no-print { display: none !important; }
+          body.page-meal-plan .col-md-10 { flex: 0 0 100%; max-width: 100%; }
+          body.page-meal-plan .d-flex.justify-content-between.align-items-center.flex-wrap { flex-direction: column; align-items: stretch !important; }
+          body.page-meal-plan .mr-auto { margin-right: 0 !important; text-align: center; margin-bottom: 1rem; }
+          body.page-meal-plan .d-flex.align-items-center { flex-direction: column; width: 100%; }
+          body.page-meal-plan .btn-group,
+          body.page-meal-plan .btn { width: 100%; margin-bottom: 0.5rem; margin-right: 0 !important; }
+          body.page-monthly-plan .monthly-plan-header { flex-wrap: wrap; justify-content: center; gap: 10px; }
+          body.page-monthly-plan .monthly-plan-header h1 { order: -1; width: 100%; font-size: 1.8rem; text-align: center; }
+          body.page-monthly-plan .monthly-calendar-grid { min-height: auto; }
+          body.page-monthly-plan .calendar-header { font-size: 0.75rem; padding: 0.4rem 0.2rem; }
+          body.page-monthly-plan .calendar-day { min-height: 80px; padding: 0.2rem; font-size: 0.7rem; align-items: center; justify-content: center; text-align: center; position: relative; }
+          body.page-monthly-plan .calendar-day .day-number { position: absolute; top: 2px; left: 4px; font-size: 0.6rem; font-weight: normal; color: #6c757d; }
+          body.page-monthly-plan .calendar-day.has-meals { cursor: pointer; background-color: #e9f2ff; font-weight: 600; color: var(--primary-blue); }
+          body.page-monthly-plan .day-calories { font-size: 0.8rem; }
+          #ai-week-plan .day-column { width: 100%; flex-basis: 100%; }
+          #ai-month-plan .monthly-calendar-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+          #ai-month-plan .calendar-day { min-height: 80px; }
+          body.page-shopping-list .form-inline { flex-direction: row; flex-wrap: nowrap; align-items: flex-end; }
+          body.page-shopping-list .form-inline .form-group { margin-bottom: 0; }
+          body.page-shopping-list .form-inline .btn { width: auto; margin-top: 0; }
+          body.page-recipes .card.p-3 .d-flex.justify-content-between { flex-direction: column; }
+          body.page-recipes .card.p-3 .flex-grow-1 { max-width: 100% !important; width: 100%; }
+          body.page-recipes .card.p-3 .d-flex.justify-content-end { flex-direction: column; width: 100%; margin-top: 1rem; }
+          body.page-recipes .card.p-3 .btn-group { width: 100%; margin-right: 0 !important; margin-bottom: 0.5rem; }
+          body.page-recipes .card.p-3 .btn-group .btn { flex-grow: 1; }
+      }
+    </style>
+  </head>
+  <body class="{{ page_class or '' }}">
+    
+    <div id="easter-egg-container"></div>
+
+    <nav class="navbar navbar-expand-lg navbar-dark no-print">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('main.index') }}" id="navbar-brand-logo">Meal Engine</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav mr-auto">
+            {% if current_user.is_authenticated %}
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="plannerDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Planner</a>
+                <div class="dropdown-menu" aria-labelledby="plannerDropdown">
+                    <a class="dropdown-item" href="{{ url_for('main.meal_plan') }}">Weekly Plan</a>
+                    <a class="dropdown-item" href="{{ url_for('main.monthly_plan') }}">Monthly Plan</a>
+                  <a class="dropdown-item" href="{{ url_for('main.ai_architect') }}">AI Architect</a>
+                </div>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="kitchenDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">My Kitchen</a>
+                <div class="dropdown-menu" aria-labelledby="kitchenDropdown">
+                  <a class="dropdown-item" href="{{ url_for('main.list_recipes') }}">Recipes</a>
+                  <a class="dropdown-item" href="{{ url_for('main.saved_meals') }}">Saved Meals</a>
+                  <a class="dropdown-item" href="{{ url_for('main.list_ingredients') }}">Pantry</a>
+                </div>
+              </li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('main.shopping_list') }}">Shopping List</a></li>
+            {% endif %}
+          </ul>
+          
+          <ul class="navbar-nav">
+              {% if current_user.is_authenticated %}
+                  <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="accountDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                      <i class="fas fa-user-circle"></i> Account
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="accountDropdown">
+                      
+                      <a class="dropdown-item" href="{{ url_for('main.profile') }}"><i class="fas fa-user-edit"></i> Profile</a>
+
+                      {% if current_user.subscription_plan != 'elite' %}
+                        <a class="dropdown-item" href="{{ url_for('payments.pricing') }}"><i class="fas fa-arrow-alt-circle-up"></i> Upgrade Plan</a>
+                      {% endif %}
+                      
+                      {% if current_user.is_premium_or_elite %}
+                        <div class="dropdown-item-form">
+                            <form action="{{ url_for('payments.create_billing_portal_session') }}" method="POST">
+                                <button type="submit" class="dropdown-item-button"><i class="fas fa-credit-card"></i> Manage Billing</button>
+                            </form>
+                        </div>
+                      {% endif %}
+
+                      <div class="dropdown-divider"></div>
+                      
+                      <div class="px-3 py-2">
+                        <h6 class="dropdown-header p-0 mb-1">AI Credits</h6>
+                        <div class="text-muted">
+                          {% if current_user.subscription_plan == 'elite' or current_user.ai_credits == -1 %}
+                            <strong>Unlimited</strong> <i class="fas fa-infinity"></i>
+                          {% else %}
+                            <strong>{{ current_user.ai_credits }}</strong> / {{ config['PLAN_CREDITS'][current_user.subscription_plan] }} remaining
+                          {% endif %}
+                        </div>
+                      </div>
+
+                      <div class="dropdown-divider"></div>
+
+                      <a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+                    </div>
+                  </li>
+              {% else %}
+                  <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Login</a></li>
+                  <li class="nav-item"><a class="nav-link btn btn-primary ml-2" href="{{ url_for('auth.signup') }}">Sign Up</a></li>
+              {% endif %}
+          </ul>
+
+        </div>
+      </div>
+    </nav>
+    
+    <div class="container-fluid main-content-container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="no-print">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert"><span aria-hidden="true">×</span></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      
+      {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register("{{ url_for('static', filename='js/service-worker.js') }}", { scope: '/' })
+            .then(registration => {
+              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            }, err => {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+      }
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- KONAMI CODE EASTER EGG ---
+        const konamiCode = [ 'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a' ];
+        let konamiIndex = 0;
+        document.addEventListener('keydown', function(e) {
+            if (e.key.toLowerCase() === konamiCode[konamiIndex].toLowerCase()) {
+                konamiIndex++;
+                if (konamiIndex === konamiCode.length) {
+                    konamiIndex = 0; 
+                    const container = document.getElementById('easter-egg-container');
+                    for (let i = 0; i < 30; i++) {
+                        const emoji = document.createElement('div');
+                        emoji.className = 'chef-emoji';
+                        emoji.textContent = '👨‍🍳';
+                        emoji.style.left = `${Math.random() * 100}vw`;
+                        emoji.style.animationDuration = `${Math.random() * 2 + 3}s`;
+                        emoji.style.animationDelay = `${Math.random() * 2}s`;
+                        container.appendChild(emoji);
+                    }
+                    setTimeout(() => { container.innerHTML = ''; }, 5000);
+                }
+            } else { konamiIndex = 0; }
+        });
+
+        // --- SHAKY ENGINE EASTER EGG (FIXED & WITH SOUND) ---
+        const logo = document.getElementById('navbar-brand-logo');
+        const mainContent = document.querySelector('.main-content-container');
+        const engineSound = new Audio("{{ url_for('static', filename='sounds/engine-start.mp3') }}");
+        let clickCount = 0;
+        let clickTimer = null;
+        const clickDelay = 300;
+
+        logo.addEventListener('click', function(e) {
+            e.preventDefault();
+            clickCount++;
+
+            clearTimeout(clickTimer);
+
+            clickTimer = setTimeout(() => {
+                if (clickCount === 1) {
+                    window.location.href = logo.href;
+                }
+                clickCount = 0;
+            }, clickDelay);
+
+            if (clickCount === 5) {
+                mainContent.classList.add('shake-animation');
+                engineSound.play();
+                clickCount = 0;
+                clearTimeout(clickTimer);
+
+                setTimeout(() => {
+                    mainContent.classList.remove('shake-animation');
+                }, 500);
+            }
+        });
+    });
+    </script>
+  </body>
+</html>

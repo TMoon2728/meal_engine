@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1><i class="fas fa-box-open"></i> Your Pantry & Master Ingredients</h1>
+  </div>
+
+  <div class="card p-3 mb-4">
+    <h5 class="card-title">Add to Master Ingredient List</h5>
+    <form method="POST" action="{{ url_for('main.list_ingredients') }}" class="form-inline">
+        <div class="form-group flex-grow-1 mr-2">
+            <input type="text" name="name" class="form-control w-100" placeholder="e.g., All-Purpose Flour" required>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Add Ingredient</button>
+    </form>
+  </div>
+
+  <!-- Control Bar for Pantry -->
+  <div class="card p-3 mb-4">
+    <div class="row">
+        <div class="col-md-8">
+            <form method="GET" action="{{ url_for('main.list_ingredients') }}">
+                <div class="input-group">
+                    <input type="text" name="query" class="form-control" placeholder="Search all ingredients..." value="{{ query or '' }}">
+                    <div class="input-group-append">
+                        <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-4">
+            <div class="btn-group w-100">
+                <a href="{{ url_for('main.list_ingredients', filter='all', query=query) }}" class="btn {% if stock_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">All Ingredients</a>
+                <a href="{{ url_for('main.list_ingredients', filter='in_pantry', query=query) }}" class="btn {% if stock_filter == 'in_pantry' %}btn-primary{% else %}btn-outline-primary{% endif %}">In My Pantry</a>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">Inventory Status</h5>
+        {% for group in ingredient_data | groupby('ingredient.category') %}
+            <h4 class="mt-4">{{ group.grouper or 'Uncategorized' }}</h4>
+            <ul class="list-group">
+                {% for data in group.list %}
+                    <li class="list-group-item">
+                        <div class="row align-items-center">
+                            <div class="col-md-3"><strong>{{ data.ingredient.name }}</strong></div>
+                            
+                            <!-- Category Selector -->
+                            <div class="col-md-3">
+                                <form action="{{ url_for('main.update_ingredient_category') }}" method="POST">
+                                    <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
+                                    <select name="category" class="form-control form-control-sm" onchange="this.form.submit()">
+                                        {% for cat in categories %}
+                                            <option value="{{ cat }}" {% if data.ingredient.category == cat %}selected{% endif %}>{{ cat }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                            </div>
+
+                            {% if data.pantry_item %}
+                                <!-- Pantry Quantity Controls -->
+                                <div class="col-md-5">
+                                    <form action="{{ url_for('main.update_pantry') }}" method="POST" class="form-inline">
+                                        <input type="hidden" name="action" value="update_quantity">
+                                        <input type="hidden" name="pantry_item_id" value="{{ data.pantry_item.id }}">
+                                        <label for="quantity-{{data.pantry_item.id}}" class="sr-only">Quantity</label>
+                                        <input type="number" id="quantity-{{data.pantry_item.id}}" name="quantity" class="form-control form-control-sm mr-2" value="{{ data.pantry_item.quantity }}" step="0.01" style="width: 100px;">
+                                        <label for="unit-{{data.pantry_item.id}}" class="sr-only">Unit</label>
+                                        <input type="text" id="unit-{{data.pantry_item.id}}" name="unit" class="form-control form-control-sm mr-2" value="{{ data.pantry_item.unit or '' }}" placeholder="Unit (e.g., lbs, cups)">
+                                        <button type="submit" class="btn btn-sm btn-secondary ml-2">Update</button>
+                                    </form>
+                                </div>
+                                <div class="col-md-1 text-right">
+                                    <form action="{{ url_for('main.update_pantry') }}" method="POST" onsubmit="return confirm('Are you sure?');">
+                                        <input type="hidden" name="action" value="delete"><input type="hidden" name="pantry_item_id" value="{{ data.pantry_item.id }}">
+                                        <button type="submit" class="btn btn-sm btn-light" title="Remove from Pantry">×</button>
+                                    </form>
+                                </div>
+                            {% else %}
+                                <!-- Add to Pantry Button -->
+                                <div class="col-md-6 text-right">
+                                    <form action="{{ url_for('main.update_pantry') }}" method="POST">
+                                        <input type="hidden" name="action" value="add"><input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
+                                        <button type="submit" class="btn btn-sm btn-success">Add to Pantry</button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endfor %}
+
+        {% if not ingredient_data %}
+            <p class="text-muted">No ingredients match your current filter. Try showing all ingredients.</p>
+        {% endif %}
+    </div>
+  </div>
+{% endblock %}

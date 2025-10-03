@@ -1,0 +1,135 @@
+<!-- templates/pricing.html -->
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .pricing-header {
+    max-width: 700px;
+  }
+  
+  .card-deck .card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .card-deck .card-body {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  .card-deck .card-body .list-unstyled {
+    flex-grow: 1;
+  }
+
+  .card-deck .card-highlight {
+    border: 2px solid var(--primary-blue);
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12) !important;
+    z-index: 10;
+  }
+  .card-highlight .btn-primary {
+    background-color: var(--primary-blue);
+  }
+  .btn-link-style {
+    background: none !important;
+    border: none !important;
+    color: var(--primary-blue) !important;
+    font-weight: 600;
+    padding: 0 !important;
+    text-decoration: none !important;
+    display: inline-block;
+    cursor: pointer;
+  }
+  .btn-link-style:hover {
+    text-decoration: underline !important;
+  }
+</style>
+
+<div class="container py-3">
+  <div class="pricing-header p-3 pb-md-4 mx-auto text-center">
+    <h1 class="display-4 font-weight-normal">Find Your Perfect Plan</h1>
+    <p class="lead text-muted">Start for free, then upgrade to unlock powerful AI features and expand your household. Cancel anytime.</p>
+  </div>
+
+  <div class="card-deck mb-3 text-center">
+    
+    <!-- FREE PLAN -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header">
+        <h4 class="my-0 font-weight-normal">Free</h4>
+      </div>
+      <div class="card-body">
+        <h1 class="card-title pricing-card-title">$0<small class="text-muted">/mo</small></h1>
+        <ul class="list-unstyled mt-3 mb-4">
+          <li>Full Recipe & Pantry Management</li>
+          <li>Weekly & Monthly Planners</li>
+          <li><strong>{{ config['HOUSEHOLD_LIMITS']['free'] }}</strong> Household Members</li>
+          <li class="mt-2"><strong>{{ config['PLAN_CREDITS']['free'] }}</strong> AI Credits per month</li>
+        </ul>
+        
+        {% if current_user.subscription_plan == 'free' %}
+          <button type="button" class="btn btn-lg btn-block btn-secondary" disabled>Your Current Plan</button>
+        {% else %}
+          <form action="{{ url_for('payments.create_billing_portal_session') }}" method="POST">
+             <button type="submit" class="btn btn-lg btn-block btn-outline-primary">Manage Plan</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- PREMIUM PLAN (Highlighted as Recommended) -->
+    <div class="card mb-4 shadow-sm card-highlight">
+      <div class="card-header">
+        <h4 class="my-0 font-weight-normal">Premium</h4>
+      </div>
+      <div class="card-body">
+        <h1 class="card-title pricing-card-title">$5<small class="text-muted">/mo</small></h1>
+        <p class="small text-muted">(Tax included)</p>
+        <ul class="list-unstyled mt-3 mb-4">
+          <li>Everything in Free, plus:</li>
+          <li><strong><i class="fas fa-magic"></i> AI Meal Plan Architect</strong></li>
+          <li><strong><i class="fas fa-magic"></i> AI Recipe Remix & Import</strong></li>
+          <li><strong>{{ config['HOUSEHOLD_LIMITS']['premium'] }}</strong> Household Members</li>
+          <li class="mt-2"><strong>{{ config['PLAN_CREDITS']['premium'] }}</strong> AI Credits per month</li>
+        </ul>
+
+        {% if current_user.subscription_plan == 'premium' %}
+          <button type="button" class="btn btn-lg btn-block btn-secondary" disabled>Your Current Plan</button>
+        {% else %}
+          <form action="{{ url_for('payments.create_checkout_session') }}" method="POST">
+            <input type="hidden" name="price_id" value="{{ stripe_price_ids.premium }}">
+            <button type="submit" class="btn btn-lg btn-block btn-primary">Upgrade to Premium</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ELITE PLAN -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header">
+        <h4 class="my-0 font-weight-normal">Elite</h4>
+      </div>
+      <div class="card-body">
+        <h1 class="card-title pricing-card-title">$10<small class="text-muted">/mo</small></h1>
+        <p class="small text-muted">(Tax included)</p>
+        <ul class="list-unstyled mt-3 mb-4">
+          <li>Everything in Premium, plus:</li>
+          <li><strong><i class="fas fa-star text-info"></i> Unlimited AI Credits</strong></li>
+          <li><strong><i class="fas fa-users text-info"></i> Unlimited Household Members</strong></li>
+          <li><strong><i class="fas fa-headphones text-info"></i> Priority Support</strong></li>
+          <li class="mt-2">Early access to new features</li>
+        </ul>
+
+        {% if current_user.subscription_plan == 'elite' %}
+          <button type="button" class="btn btn-lg btn-block btn-secondary" disabled>Your Current Plan</button>
+        {% else %}
+          <form action="{{ url_for('payments.create_checkout_session') }}" method="POST">
+            <input type="hidden" name="price_id" value="{{ stripe_price_ids.elite }}">
+            <button type="submit" class="btn btn-lg btn-block btn-link-style">Upgrade to Elite</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

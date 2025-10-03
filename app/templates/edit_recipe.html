@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1>Edit {{ recipe.name }}</h1>
+  <form method="post">
+    <div class="form-row">
+      <div class="form-group col-md-8">
+        <label for="name">Recipe Name</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{ recipe.name }}" required>
+      </div>
+      <div class="form-group col-md-4">
+        <label for="meal_type">Meal Type</label>
+        <!-- UPDATED: Added "Meal Prep" as an option -->
+        <select id="meal_type" name="meal_type" class="form-control">
+            <option value="Main Course" {% if recipe.meal_type == 'Main Course' %}selected{% endif %}>Main Course</option>
+            <option value="Side Dish" {% if recipe.meal_type == 'Side Dish' %}selected{% endif %}>Side Dish</option>
+            <option value="Dessert" {% if recipe.meal_type == 'Dessert' %}selected{% endif %}>Dessert</option>
+            <option value="Snack" {% if recipe.meal_type == 'Snack' %}selected{% endif %}>Snack</option>
+            <option value="Meal Prep" {% if recipe.meal_type == 'Meal Prep' %}selected{% endif %}>Meal Prep</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group col-md-4">
+            <label for="servings">Servings</label>
+            <input type="number" class="form-control" id="servings" name="servings" value="{{ recipe.servings or '' }}">
+        </div>
+        <div class="form-group col-md-4">
+            <label for="prep_time">Prep Time</label>
+            <input type="text" class="form-control" id="prep_time" name="prep_time" value="{{ recipe.prep_time or '' }}">
+        </div>
+        <div class="form-group col-md-4">
+            <label for="cook_time">Cook Time</label>
+            <input type="text" class="form-control" id="cook_time" name="cook_time" value="{{ recipe.cook_time or '' }}">
+        </div>
+    </div>
+
+    <!-- ===== Nutritional Information Section ===== -->
+    <div class="card p-3 mb-3">
+        <h5>Nutritional Information (per serving)</h5>
+        <div class="form-row">
+            <div class="form-group col-md-3">
+                <label for="calories">Calories</label>
+                <input type="number" step="0.01" class="form-control" id="calories" name="calories" value="{{ recipe.calories or '' }}">
+            </div>
+            <div class="form-group col-md-3">
+                <label for="protein">Protein (g)</label>
+                <input type="number" step="0.01" class="form-control" id="protein" name="protein" value="{{ recipe.protein or '' }}">
+            </div>
+            <div class="form-group col-md-3">
+                <label for="fat">Fat (g)</label>
+                <input type="number" step="0.01" class="form-control" id="fat" name="fat" value="{{ recipe.fat or '' }}">
+            </div>
+            <div class="form-group col-md-3">
+                <label for="carbs">Carbs (g)</label>
+                <input type="number" step="0.01" class="form-control" id="carbs" name="carbs" value="{{ recipe.carbs or '' }}">
+            </div>
+        </div>
+    </div>
+    
+    <div class="form-group">
+      <label for="instructions">Instructions</label>
+      <textarea class="form-control" id="instructions" name="instructions" rows="10" required>{{ recipe.instructions }}</textarea>
+    </div>
+
+    <h3>Ingredients</h3>
+    <div id="ingredient-list">
+      {% for item in recipe.ingredients %}
+      <div class="form-row ingredient-row mb-2">
+        <div class="col">
+          <select name="ingredient[]" class="form-control">
+            {% for ingredient in ingredients %}
+            <option value="{{ ingredient.id }}" {% if item.ingredient_id == ingredient.id %}selected{% endif %}>{{ ingredient.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <input type="number" step="0.01" name="quantity[]" class="form-control" placeholder="Quantity" value="{{ item.quantity }}" required>
+        </div>
+        <div class="col">
+          <input type="text" name="unit[]" class="form-control" placeholder="Unit" value="{{ item.unit or '' }}">
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="btn btn-info" id="add-ingredient-btn">Add Ingredient</button>
+    <hr>
+
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </form>
+
+  <script>
+    document.getElementById('add-ingredient-btn').addEventListener('click', function() {
+      const ingredientList = document.getElementById('ingredient-list');
+      const newRow = document.createElement('div');
+      newRow.className = 'form-row ingredient-row mb-2';
+      newRow.innerHTML = `
+        <div class="col">
+          <select name="ingredient[]" class="form-control">
+            <option value="">-- Select Ingredient --</option>
+            {% for ingredient in ingredients %}
+            <option value="{{ ingredient.id }}">{{ ingredient.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <input type="number" step="0.01" name="quantity[]" class="form-control" placeholder="Quantity">
+        </div>
+        <div class="col">
+          <input type="text" name="unit[]" class="form-control" placeholder="Unit">
+        </div>
+      `;
+      ingredientList.appendChild(newRow);
+    });
+  </script>
+{% endblock %}

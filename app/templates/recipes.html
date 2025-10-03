@@ -1,0 +1,196 @@
+<!-- templates/recipes.html -->
+{% extends 'base.html' %}
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-book-open"></i> Recipes</h1>
+    <a href="{{ url_for('main.add_recipe') }}" class="btn btn-secondary no-print"><i class="fas fa-plus"></i> Add Manually</a>
+  </div>
+  
+  {% if current_user.subscription_plan == 'elite' or current_user.ai_credits > 0 %}
+    <div class="row">
+      <!-- AI Quick Add -->
+      <div class="col-md-6 mb-4">
+          <div class="card h-100">
+              <div class="card-body text-center">
+                  <h5 class="card-title"><i class="fas fa-magic"></i> AI Quick Add</h5>
+                  <p class="text-muted small">Type a recipe name and let the AI build it. (1 credit)</p>
+                  <form action="{{ url_for('api.ai_quick_add') }}" method="POST" class="form-inline" id="ai-quick-add-form">
+                      <div class="form-group flex-grow-1 mr-2">
+                          <input type="text" name="recipe_name" class="form-control w-100" placeholder="e.g., Classic Beef Lasagna" required>
+                      </div>
+                      <button type="submit" class="btn btn-primary" id="ai-generate-btn"><i class="fas fa-magic"></i> Generate</button>
+                  </form>
+              </div>
+          </div>
+      </div>
+      <!-- Import from URL -->
+      <div class="col-md-6 mb-4">
+          <div class="card h-100">
+              <div class="card-body text-center">
+                  <h5 class="card-title"><i class="fas fa-link"></i> Import from Web</h5>
+                   <p class="text-muted small">Paste a URL and the AI will import it. (1 credit)</p>
+                  <form class="form-inline" id="import-url-form">
+                      <div class="form-group flex-grow-1 mr-2">
+                          <input type="url" id="recipe-url-input" class="form-control w-100" placeholder="https://www.recipe-website.com/..." required>
+                      </div>
+                      <button type="submit" class="btn btn-primary" id="import-url-btn"><i class="fas fa-download"></i> Import</button>
+                  </form>
+              </div>
+          </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-warning text-center">
+      <strong>You have used all of your AI credits for this month.</strong>
+      <a href="{{ url_for('payments.pricing') }}" class="alert-link font-weight-bold">Upgrade your plan to get more!</a>
+    </div>
+  {% endif %}
+
+  <!-- ===== UPDATED & CONSISTENT Control Bar for Search, Filter, and Sort ===== -->
+  <div class="card p-3 mb-4 no-print">
+    <div class="d-flex justify-content-between align-items-center flex-wrap">
+      <!-- Search Form (Left Side) -->
+      <div class="flex-grow-1 mr-3 mb-2 mb-md-0" style="max-width: 400px;">
+        <form method="GET" action="{{ url_for('main.list_recipes') }}" class="input-group">
+          <input type="text" name="query" class="form-control" placeholder="Search your recipes..." value="{{ query or '' }}">
+          <input type="hidden" name="filter" value="{{ request.args.get('filter', '') }}">
+          <input type="hidden" name="sort" value="{{ request.args.get('sort', 'asc') }}">
+          <div class="input-group-append">
+            <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
+          </div>
+        </form>
+      </div>
+  
+      <!-- Button Groups (Right Side) -->
+      <div class="d-flex justify-content-end align-items-center">
+        <div class="btn-group mr-3" role="group">
+          <a href="{{ url_for('main.list_recipes', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if not pantry_filter_active and not favorites_filter_active %}active{% endif %}">All</a>
+          <a href="{{ url_for('main.list_recipes', filter='favorites', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if favorites_filter_active %}active{% endif %}"><i class="fas fa-heart"></i> Favorites</a>
+          <a href="{{ url_for('main.list_recipes', filter='pantry', sort=sort_order, query=query) }}" class="btn btn-outline-primary {% if pantry_filter_active %}active{% endif %}">Can Make</a>
+        </div>
+        <div class="btn-group" role="group">
+          <a href="{{ url_for('main.list_recipes', sort='asc', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'asc' %}active{% endif %}">A-Z</a>
+          <a href="{{ url_for('main.list_recipes', sort='desc', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'desc' %}active{% endif %}">Z-A</a>
+          <a href="{{ url_for('main.list_recipes', sort='rating', filter=request.args.get('filter'), query=query) }}" class="btn btn-outline-secondary {% if sort_order == 'rating' %}active{% endif %}"><i class="fas fa-star"></i> Rating</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if pantry_filter_active %}
+    <div class="alert alert-info">Showing only recipes you can make with ingredients currently in your pantry.</div>
+  {% elif favorites_filter_active %}
+    <div class="alert alert-info">Showing your favorite recipes.</div>
+  {% endif %}
+
+  {% if not recipes %}
+    <div class="alert alert-warning">No recipes found. Add one manually or import one from the web!</div>
+  {% else %}
+    <div class="recipe-grid">
+      {% for recipe in recipes %}
+        <div class="card recipe-list-card">
+          <i class="favorite-icon no-print {% if recipe.is_favorite %}fas fa-heart{% else %}far fa-heart{% endif %}" 
+             data-recipe-id="{{ recipe.id }}" 
+             title="Toggle Favorite"></i>
+          <div class="recipe-card-body">
+              <i class="fas fa-utensils fa-2x mb-3" style="color: var(--primary-blue);"></i>
+              <h5>{{ recipe.name }}</h5>
+               <div class="recipe-rating">
+                  {% for i in range(1, 6) %}
+                      <i class="{% if recipe.rating >= i %}fas fa-star{% else %}far fa-star{% endif %}"></i>
+                  {% endfor %}
+              </div>
+          </div>
+          <p class="mb-3">{{ recipe.instructions|truncate(80) }}</p>
+          <a href="{{ url_for('main.view_recipe', recipe_id=recipe.id) }}" class="btn btn-primary mt-auto">View Recipe</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.favorite-icon').forEach(icon => {
+        icon.addEventListener('click', function() {
+            const recipeId = this.dataset.recipeId;
+            fetch(`{{ url_for('api.toggle_favorite', recipe_id=0) }}`.slice(0, -1) + recipeId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_favorite) {
+                    this.classList.remove('far'); this.classList.add('fas');
+                } else {
+                    this.classList.remove('fas'); this.classList.add('far');
+                }
+            });
+        });
+    });
+
+    const aiForm = document.getElementById('ai-quick-add-form');
+    if (aiForm) {
+        const generateBtn = document.getElementById('ai-generate-btn');
+        const wittyMessages = [
+            'Consulting the culinary cosmos...',
+            'Unleashing the flavor algorithm...',
+            'Simmering some new ideas...',
+        ];
+        aiForm.addEventListener('submit', function() {
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${wittyMessages[Math.floor(Math.random() * wittyMessages.length)]}`;
+        });
+    }
+
+    const importForm = document.getElementById('import-url-form');
+    if (importForm) {
+      const importBtn = document.getElementById('import-url-btn');
+      const urlInput = document.getElementById('recipe-url-input');
+      const wittyMessages = [
+          'Scanning for secret ingredients...',
+          'Preheating the AI...',
+          'Definitely not stealing the recipe... just borrowing!',
+      ];
+
+      importForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          
+          importBtn.disabled = true;
+          importBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${wittyMessages[Math.floor(Math.random() * wittyMessages.length)]}`;
+
+          const helpText = document.createElement('p');
+          helpText.className = 'text-muted small mt-2';
+          helpText.textContent = 'This may take a minute. Please wait...';
+          importForm.insertAdjacentElement('afterend', helpText);
+
+          fetch("{{ url_for('api.import_and_create_recipe') }}", {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: urlInput.value })
+          })
+          .then(response => response.json())
+          .then(data => {
+              if (data.error) {
+                  alert(`Error: ${data.error}`);
+                  if (data.redirect_url) {
+                      window.location.href = data.redirect_url;
+                  }
+                  helpText.remove();
+              } else if (data.success) {
+                  window.location.href = `{{ url_for('main.edit_recipe', recipe_id=0) }}`.slice(0, -1) + data.recipe_id;
+              }
+          })
+          .catch(error => {
+              alert('An unexpected network error occurred. Please try again.');
+              console.error('Import Error:', error);
+              helpText.remove();
+          })
+          .finally(() => {
+              importBtn.disabled = false;
+              importBtn.innerHTML = '<i class="fas fa-download"></i> Import';
+          });
+      });
+    }
+});
+</script>
+{% endblock %}
