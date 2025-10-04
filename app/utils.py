@@ -4,7 +4,7 @@ import smtplib
 from email.message import EmailMessage
 from flask import flash, url_for, current_app
 from . import db, s
-from .models import Achievement, UserAchievement
+from .models import Achievement, UserAchievement, PantryItem
 
 # --- Achievement Utilities ---
 def award_achievement(user, achievement_name):
@@ -60,11 +60,8 @@ def convert_quantity_to_float(quantity_str):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
-# CORRECTED: Initialize with default units first.
 ureg = pint.UnitRegistry()
-# THEN load our custom definitions file, which adds to the defaults.
 ureg.load_definitions('app/unit_definitions.txt')
-
 
 cooking_conversions = {
     'all_purpose_flour': {'cup': '120 * gram'}, 'bread_flour': {'cup': '127 * gram'},
@@ -115,6 +112,38 @@ def sanitize_unit(unit_str):
         'stick': 'stick_of_butter'
     }
     return unit_map.get(unit_str, unit_str)
+
+
+# NEW HELPER FUNCTION
+def consume_ingredients_from_recipe(user, recipe):
+    """
+    Deducts a recipe's ingredients from a user's household pantry.
+    Returns two lists: updated items and skipped items.
+    """
+    pantry_items = {item.ingredient_id: item for item in user.household.pantry_items}
+    updated, skipped = [], []
+    for req_ing in recipe.ingredients:
+        if not req_ing.quantity or req_ing.ingredient_id not in pantry_items:
+            continue
+        pantry_item = pantry_items[req_ing.ingredient_id]
+        with ureg.context('cooking', substance=req_ing.ingredient.name.lower().replace(" ", "_")):
+            try:
+                recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
+                pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
+                
+                if not recipe_qty.is_compatible_with(pantry_qty):
+                    raise pint.errors.DimensionalityError(recipe_qty.units, pantry_qty.units, "Units are not compatible")
+
+                # Perform the subtraction
+                new_pantry_qty = pantry_qty.to(recipe_qty.units) - recipe_qty
+                
+                # Convert back to the pantry item's original unit for storage
+                pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
+                updated.append(req_ing.ingredient.name)
+            except Exception as e:
+                skipped.append(f"{req_ing.ingredient.name} (Error: {e})")
+    
+    return updated, skipped
 
 
 # --- Email Utilities ---
