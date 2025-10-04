@@ -61,6 +61,7 @@ def convert_quantity_to_float(quantity_str):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
+# This is the simplified, correct setup. All complex density logic has been removed.
 ureg = pint.UnitRegistry()
 ureg.load_definitions('app/unit_definitions.txt')
 
@@ -71,7 +72,6 @@ def sanitize_unit(unit_str):
     
     cleaned_unit = unit_str.lower().strip().rstrip('s')
     
-    # THIS IS THE FIX: Check if the unit is empty AFTER stripping whitespace.
     if not cleaned_unit:
         return "dimensionless"
     
