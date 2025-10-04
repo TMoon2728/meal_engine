@@ -1,7 +1,7 @@
 import os
 import pint
 import smtplib
-import logging # Import the logging library
+import logging
 from email.message import EmailMessage
 from flask import flash, url_for, current_app
 from . import db, s
@@ -61,14 +61,19 @@ def convert_quantity_to_float(quantity_str):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
-# The faulty density conversion feature has been completely removed.
 ureg = pint.UnitRegistry()
 ureg.load_definitions('app/unit_definitions.txt')
 
 def sanitize_unit(unit_str):
     """Sanitizes and maps common cooking units to Pint-compatible units."""
-    if not unit_str: return "dimensionless"
-    unit_str = unit_str.lower().strip().rstrip('s') # Strip plurals automatically
+    if not unit_str:
+        return "dimensionless"
+    
+    cleaned_unit = unit_str.lower().strip().rstrip('s')
+    
+    # THIS IS THE FIX: Check if the unit is empty AFTER stripping whitespace.
+    if not cleaned_unit:
+        return "dimensionless"
     
     unit_map = {
         'oz': 'fluid_ounce', 'ounce': 'fluid_ounce',
@@ -96,7 +101,7 @@ def sanitize_unit(unit_str):
         'strip': 'strip',
         'sheet': 'sheet',
     }
-    return unit_map.get(unit_str, unit_str)
+    return unit_map.get(cleaned_unit, cleaned_unit)
 
 
 def consume_ingredients_from_recipe(user, recipe):
@@ -146,7 +151,6 @@ def consume_ingredients_from_recipe(user, recipe):
         except pint.errors.UndefinedUnitError as e:
             skipped.append(f"{pantry_item.ingredient.name} (The unit '{e.unit_name}' is not recognized)")
         except Exception as e:
-            # THIS IS THE FIX FOR LOGGING
             logging.error(f"An unexpected error occurred during pantry deduction for item '{pantry_item.ingredient.name}': {e}", exc_info=True)
             skipped.append(f"{pantry_item.ingredient.name} (An unexpected error occurred: {repr(e)})")
     
