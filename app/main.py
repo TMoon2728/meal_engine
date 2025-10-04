@@ -248,6 +248,21 @@ def update_pantry():
     db.session.commit()
     return redirect(url_for('main.list_ingredients', filter=request.args.get('filter', 'all'), query=request.args.get('query', '')))
 
+# NEW ROUTE TO HANDLE CONTAINER SETTINGS
+@main.route('/update-ingredient-details', methods=['POST'])
+@login_required
+def update_ingredient_details():
+    ingredient_id = request.form.get('ingredient_id')
+    ingredient = db.session.get(Ingredient, int(ingredient_id))
+    if ingredient:
+        ingredient.is_container = 'is_container' in request.form
+        ingredient.consumable_unit = request.form.get('consumable_unit')
+        ingredient.container_prompt = request.form.get('container_prompt')
+        db.session.commit()
+        flash(f'Details for "{ingredient.name}" updated.', 'success')
+    return redirect(url_for('main.list_ingredients', query=request.args.get('query', '')))
+
+
 @main.route('/recipe/add', methods=['GET', 'POST'])
 @login_required
 def add_recipe():
