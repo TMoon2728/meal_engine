@@ -1,6 +1,7 @@
 import os
 import pint
 import smtplib
+import logging # Import the logging library
 from email.message import EmailMessage
 from flask import flash, url_for, current_app
 from . import db, s
@@ -60,6 +61,7 @@ def convert_quantity_to_float(quantity_str):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
+# The faulty density conversion feature has been completely removed.
 ureg = pint.UnitRegistry()
 ureg.load_definitions('app/unit_definitions.txt')
 
@@ -144,6 +146,8 @@ def consume_ingredients_from_recipe(user, recipe):
         except pint.errors.UndefinedUnitError as e:
             skipped.append(f"{pantry_item.ingredient.name} (The unit '{e.unit_name}' is not recognized)")
         except Exception as e:
+            # THIS IS THE FIX FOR LOGGING
+            logging.error(f"An unexpected error occurred during pantry deduction for item '{pantry_item.ingredient.name}': {e}", exc_info=True)
             skipped.append(f"{pantry_item.ingredient.name} (An unexpected error occurred: {repr(e)})")
     
     return updated, skipped
