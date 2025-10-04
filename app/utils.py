@@ -63,38 +63,6 @@ def convert_quantity_to_float(quantity_str):
 ureg = pint.UnitRegistry()
 ureg.load_definitions('app/unit_definitions.txt')
 
-cooking_conversions = {
-    'all_purpose_flour': {'cup': '120 * gram'}, 'bread_flour': {'cup': '127 * gram'},
-    'cake_flour': {'cup': '113 * gram'}, 'whole_wheat_flour': {'cup': '113 * gram'},
-    'granulated_sugar': {'cup': '200 * gram'}, 'brown_sugar': {'cup': '213 * gram'},
-    'powdered_sugar': {'cup': '113 * gram'}, 'baking_soda': {'cup': '220 * gram'},
-    'baking_powder': {'cup': '184 * gram'}, 'cocoa_powder': {'cup': '85 * gram'},
-    'cornstarch': {'cup': '113 * gram'}, 'salt': {'cup': '273 * gram'},
-    'butter': {'cup': '227 * gram'}, 'oil': {'cup': '213 * gram'},
-    'water': {'cup': '236 * gram'}, 'milk': {'cup': '241 * gram'},
-    'heavy_cream': {'cup': '232 * gram'}, 'honey': {'cup': '340 * gram'},
-    'molasses': {'cup': '340 * gram'}, 'chopped_nuts': {'cup': '113 * gram'},
-    'oats': {'cup': '85 * gram'}, 'rice_uncooked': {'cup': '184 * gram'},
-    'rice_cooked': {'cup': '170 * gram'}, 'parmesan_cheese': {'cup': '100 * gram'},
-    'cooked_chicken': {'cup': '140 * gram'},
-}
-
-densities = {
-    substance: ureg.parse_expression(conversions['cup']) / (1 * ureg.cup)
-    for substance, conversions in cooking_conversions.items()
-}
-
-def mass_to_volume(ureg, quantity, substance):
-    return quantity / densities[substance]
-            
-def volume_to_mass(ureg, quantity, substance):
-    return quantity * densities[substance]
-            
-cooking_context = pint.Context('cooking')
-cooking_context.add_transformation('[mass]', '[volume]', mass_to_volume)
-cooking_context.add_transformation('[volume]', '[mass]', volume_to_mass)
-ureg.add_context(cooking_context)
-
 def sanitize_unit(unit_str):
     """Sanitizes and maps common cooking units to Pint-compatible units."""
     if not unit_str: return "dimensionless"
@@ -173,20 +141,24 @@ def consume_ingredients_from_recipe(user, recipe):
         
         # Proceed with the found pantry item (either exact or substitute)
         try:
-            with ureg.context('cooking', substance=pantry_item.ingredient.name.lower().replace(" ", "_")):
-                recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
-                pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
-                
-                if not recipe_qty.is_compatible_with(pantry_qty):
-                    raise pint.errors.DimensionalityError(recipe_qty.units, pantry_qty.units)
+            # THIS IS THE FIX: The overly specific 'with ureg.context(...)' line has been removed.
+            recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
+            pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
+            
+            if not recipe_qty.is_compatible_with(pantry_qty):
+                raise pint.errors.DimensionalityError(pantry_qty.units, recipe_qty.units)
 
-                new_pantry_qty = pantry_qty.to(recipe_qty.units) - recipe_qty
-                
-                pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
-                updated.append(pantry_item.ingredient.name)
+            new_pantry_qty = pantry_qty - recipe_qty.to(pantry_qty.units)
+            
+            pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
+            updated.append(pantry_item.ingredient.name)
+
+        except pint.errors.DimensionalityError as e:
+            skipped.append(f"{pantry_item.ingredient.name} (Cannot convert pantry unit '{e.units1}' to recipe unit '{e.units2}')")
+        except pint.errors.UndefinedUnitError as e:
+            skipped.append(f"{pantry_item.ingredient.name} (The unit '{e.unit_name}' is not recognized)")
         except Exception as e:
-            error_message = str(e) if str(e) else "Unit Mismatch"
-            skipped.append(f"{pantry_item.ingredient.name} (Error: {error_message})")
+            skipped.append(f"{pantry_item.ingredient.name} (An unexpected error occurred: {repr(e)})")
     
     return updated, skipped
 
