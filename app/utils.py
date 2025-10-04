@@ -85,15 +85,18 @@ densities = {
 }
 
 def mass_to_volume(ureg, quantity, substance):
+    if substance not in densities: return quantity # Return unconverted if substance is unknown
     return quantity / densities[substance]
             
 def volume_to_mass(ureg, quantity, substance):
+    if substance not in densities: return quantity
     return quantity * densities[substance]
             
 cooking_context = pint.Context('cooking')
 cooking_context.add_transformation('[mass]', '[volume]', mass_to_volume)
 cooking_context.add_transformation('[volume]', '[mass]', volume_to_mass)
-ureg.add_context(cooking_context)
+# THIS IS THE FIX: The context is defined but NOT added globally anymore.
+# ureg.add_context(cooking_context) # This faulty line is now removed.
 
 def sanitize_unit(unit_str):
     """Sanitizes and maps common cooking units to Pint-compatible units."""
@@ -130,9 +133,6 @@ def sanitize_unit(unit_str):
 
 
 def consume_ingredients_from_recipe(user, recipe):
-    """
-    Deducts a recipe's ingredients from a user's household pantry using smart-search logic.
-    """
     updated, skipped = [], []
     all_pantry_items = PantryItem.query.filter_by(household_id=user.household_id).all()
 
@@ -164,19 +164,15 @@ def consume_ingredients_from_recipe(user, recipe):
         
         try:
             pantry_item_substance = pantry_item.ingredient.name.lower().replace(" ", "_")
-            
-            # This is the FIX: Only use the density 'context' if the ingredient is in our conversion dict
+            recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
+            pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
+
             if pantry_item_substance in cooking_conversions:
                 with ureg.context('cooking', substance=pantry_item_substance):
-                    recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
-                    pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
                     if not recipe_qty.is_compatible_with(pantry_qty):
                         raise pint.errors.DimensionalityError(pantry_qty.units, recipe_qty.units)
                     new_pantry_qty = pantry_qty - recipe_qty.to(pantry_qty.units)
             else:
-                # For everything else (like slices), use the standard logic without the density context
-                recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
-                pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
                 if not recipe_qty.is_compatible_with(pantry_qty):
                     raise pint.errors.DimensionalityError(pantry_qty.units, recipe_qty.units)
                 new_pantry_qty = pantry_qty - recipe_qty.to(pantry_qty.units)
@@ -196,7 +192,6 @@ def consume_ingredients_from_recipe(user, recipe):
 
 # --- Email Utilities ---
 def send_reset_email(user_email):
-    """Generates a password reset token and sends the email."""
     token = s.dumps(user_email, salt='password-reset-salt')
     msg = EmailMessage()
     msg['Subject'] = 'Password Reset Request for Meal Engine'
