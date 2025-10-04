@@ -61,43 +61,48 @@
             <ul class="list-group">
                 {% for data in group.list %}
                     <li class="list-group-item">
-                        <form action="{{ url_for('main.update_ingredient_details') }}" method="POST">
-                        <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
                         <div class="row align-items-center">
+                            <!-- Column for Ingredient Name -->
                             <div class="col-md-2"><strong>{{ data.ingredient.name }}</strong></div>
                             
-                            <div class="col-md-2">
-                                <select name="category" class="form-control form-control-sm" onchange="this.form.submit()">
-                                    {% for cat in categories %}
-                                        <option value="{{ cat }}" {% if data.ingredient.category == cat %}selected{% endif %}>{{ cat }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-
-                            <div class="col-md-5">
-                                <div class="ingredient-details-form">
+                            <!-- Column for Category and Container Settings -->
+                            <div class="col-md-7">
+                                <form action="{{ url_for('main.update_ingredient_details') }}" method="POST" class="ingredient-details-form">
+                                    <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
+                                    <!-- Category -->
+                                    <div style="min-width: 120px;">
+                                        <select name="category" class="form-control form-control-sm">
+                                            {% for cat in categories %}<option value="{{ cat }}" {% if data.ingredient.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+                                        </select>
+                                    </div>
+                                    <!-- Container Checkbox -->
                                     <div class="form-check">
                                         <input type="checkbox" name="is_container" class="form-check-input" {% if data.ingredient.is_container %}checked{% endif %}>
                                         <label class="form-check-label small">Is Container?</label>
                                     </div>
+                                    <!-- Consumable Unit -->
                                     <div class="form-group">
-                                        <input type="text" name="consumable_unit" class="form-control form-control-sm" placeholder="Consumable Unit (e.g., slices)" value="{{ data.ingredient.consumable_unit or '' }}">
+                                        <input type="text" name="consumable_unit" class="form-control form-control-sm" placeholder="Unit (e.g., slice)" value="{{ data.ingredient.consumable_unit or '' }}">
                                     </div>
+                                    <!-- Prompt -->
                                     <div class="form-group flex-grow-1">
                                         <input type="text" name="container_prompt" class="form-control form-control-sm" placeholder="Prompt Question" value="{{ data.ingredient.container_prompt or '' }}">
                                     </div>
                                     <button type="submit" class="btn btn-sm btn-secondary">Save</button>
-                                </div>
+                                </form>
                             </div>
 
+                            <!-- Column for Pantry Status -->
                             <div class="col-md-3">
                             {% if data.pantry_item %}
                                 <div class="d-flex align-items-center">
                                     <span class="editable" data-field="quantity" data-pantry-id="{{ data.pantry_item.id }}">{{ data.pantry_item.quantity }}</span>
                                     <span class="editable ml-2" data-field="unit" data-pantry-id="{{ data.pantry_item.id }}" data-placeholder="Unit">{{ data.pantry_item.unit or 'Unit' }}</span>
                                     <span class="save-status ml-2"></span>
+                                    <!-- THIS IS THE FIX: The delete button is now in its own separate form -->
                                     <form action="{{ url_for('main.update_pantry') }}" method="POST" onsubmit="return confirm('Are you sure?');" class="ml-auto">
-                                        <input type="hidden" name="action" value="delete"><input type="hidden" name="pantry_item_id" value="{{ data.pantry_item.id }}">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="pantry_item_id" value="{{ data.pantry_item.id }}">
                                         <button type="submit" class="btn btn-sm btn-light" title="Remove from Pantry">×</button>
                                     </form>
                                 </div>
@@ -117,17 +122,15 @@
                             {% endif %}
                             </div>
                         </div>
-                        </form>
                     </li>
                 {% endfor %}
             </ul>
         {% endfor %}
-
         {% if not ingredient_data %}
             <p class="text-muted">No ingredients match your current filter. Try showing all ingredients.</p>
         {% endif %}
     </div>
-  </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -157,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const inputType = this.dataset.field === 'quantity' ? 'number' : 'text';
             const placeholder = this.dataset.placeholder || '';
             
-            this.innerHTML = `<input type="text" class="form-control form-control-sm" value="${originalValue}" placeholder="${placeholder}" style="width: 120px;">`;
+            this.innerHTML = `<input type="text" class="form-control form-control-sm" value="${originalValue}" placeholder="${placeholder}" style="width: 80px;">`;
             const input = this.querySelector('input');
             input.type = inputType;
             input.focus();
@@ -179,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify({ [field]: newValue })
                     })
                     .then(res => res.json())
-                    .then(data => {
+                    .then(.data => {
                         if (data.success) {
                             statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
                         } else {

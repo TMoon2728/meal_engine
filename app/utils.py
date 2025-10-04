@@ -9,14 +9,11 @@ from .models import Achievement, UserAchievement, PantryItem, Ingredient
 
 # --- Achievement Utilities ---
 def award_achievement(user, achievement_name):
-    """Awards an achievement to a user if they don't already have it."""
     achievement = db.session.query(Achievement).filter_by(name=achievement_name).first()
     if not achievement:
         print(f"WARN: Achievement '{achievement_name}' not found in database.")
         return
-
     exists = db.session.query(UserAchievement).filter_by(user_id=user.id, achievement_id=achievement.id).first()
-    
     if not exists:
         new_unlock = UserAchievement(user_id=user.id, achievement_id=achievement.id)
         db.session.add(new_unlock)
@@ -25,84 +22,52 @@ def award_achievement(user, achievement_name):
 
 # --- Credit Utilities ---
 def deduct_ai_credit(user):
-    """Deducts one AI credit from a user if they are not on the elite plan."""
     if user.subscription_plan != 'elite' and user.ai_credits > 0:
         user.ai_credits -= 1
 
 # --- Data Conversion Utilities ---
 def convert_quantity_to_float(quantity_str):
-    """Converts a string quantity (including fractions) to a float."""
     if not isinstance(quantity_str, str):
         try:
             return float(quantity_str)
         except (ValueError, TypeError):
             return 0.0
-    
     try:
         unicodes = {'½': 0.5, '⅓': 0.33, '⅔': 0.67, '¼': 0.25, '¾': 0.75, '⅕': 0.2}
         if quantity_str in unicodes:
             return unicodes[quantity_str]
-
         if ' ' in quantity_str and '/' in quantity_str:
             parts = quantity_str.split(' ')
             whole_num = float(parts[0])
             frac_parts = parts[1].split('/')
-            numerator = float(frac_parts[0])
-            denominator = float(frac_parts[1])
-            return whole_num + (numerator / denominator)
+            return whole_num + (float(frac_parts[0]) / float(frac_parts[1]))
         elif '/' in quantity_str:
             frac_parts = quantity_str.split('/')
-            numerator = float(frac_parts[0])
-            denominator = float(frac_parts[1])
-            return numerator / denominator
+            return float(frac_parts[0]) / float(frac_parts[1])
         else:
             return float(quantity_str)
     except (ValueError, ZeroDivisionError):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
-# This is the simplified, correct setup. All complex density logic has been removed.
 ureg = pint.UnitRegistry()
 ureg.load_definitions('app/unit_definitions.txt')
 
 def sanitize_unit(unit_str):
-    """Sanitizes and maps common cooking units to Pint-compatible units."""
     if not unit_str:
         return "dimensionless"
-    
     cleaned_unit = unit_str.lower().strip().rstrip('s')
-    
     if not cleaned_unit:
         return "dimensionless"
-    
     unit_map = {
-        'oz': 'fluid_ounce', 'ounce': 'fluid_ounce',
-        'lb': 'pound',
-        'cup': 'cup',
-        'tsp': 'teaspoon', 'teaspoon': 'teaspoon',
-        'tbsp': 'tablespoon', 'tablespoon': 'tablespoon',
-        'g': 'gram', 'gram': 'gram',
-        'kg': 'kilogram',
-        'ml': 'milliliter',
-        'stick': 'stick_of_butter',
-        'slice': 'slice',
-        'each': 'each',
-        'clove': 'clove',
-        'head': 'head',
-        'sprig': 'sprig',
-        'bunch': 'bunch',
-        'stalk': 'stalk',
-        'ear': 'ear',
-        'fillet': 'fillet',
-        'leaf': 'leaf',
-        'piece': 'piece',
-        'pat': 'pat',
-        'link': 'link',
-        'strip': 'strip',
-        'sheet': 'sheet',
+        'oz': 'fluid_ounce', 'ounce': 'fluid_ounce', 'lb': 'pound', 'cup': 'cup',
+        'tsp': 'teaspoon', 'teaspoon': 'teaspoon', 'tbsp': 'tablespoon', 'tablespoon': 'tablespoon',
+        'g': 'gram', 'gram': 'gram', 'kg': 'kilogram', 'ml': 'milliliter', 'stick': 'stick_of_butter',
+        'slice': 'slice', 'each': 'each', 'clove': 'clove', 'head': 'head', 'sprig': 'sprig',
+        'bunch': 'bunch', 'stalk': 'stalk', 'ear': 'ear', 'fillet': 'fillet', 'leaf': 'leaf',
+        'piece': 'piece', 'pat': 'pat', 'link': 'link', 'strip': 'strip', 'sheet': 'sheet',
     }
     return unit_map.get(cleaned_unit, cleaned_unit)
-
 
 def consume_ingredients_from_recipe(user, recipe):
     updated, skipped = [], []
@@ -112,18 +77,11 @@ def consume_ingredients_from_recipe(user, recipe):
         if not req_ing.quantity or req_ing.quantity <= 0:
             continue
 
-        pantry_item = None
-        for item in all_pantry_items:
-            if item.ingredient_id == req_ing.ingredient_id:
-                pantry_item = item
-                break
+        pantry_item = next((item for item in all_pantry_items if item.ingredient_id == req_ing.ingredient_id), None)
         
         if not pantry_item:
             search_term = req_ing.ingredient.name
-            substitutes = [
-                item for item in all_pantry_items 
-                if search_term.lower() in item.ingredient.name.lower()
-            ]
+            substitutes = [item for item in all_pantry_items if search_term.lower() in item.ingredient.name.lower()]
             if len(substitutes) == 1:
                 pantry_item = substitutes[0]
             elif len(substitutes) > 1:
@@ -142,7 +100,6 @@ def consume_ingredients_from_recipe(user, recipe):
                 raise pint.errors.DimensionalityError(pantry_qty.units, recipe_qty.units)
 
             new_pantry_qty = pantry_qty - recipe_qty.to(pantry_qty.units)
-            
             pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
             updated.append(pantry_item.ingredient.name)
 
@@ -156,7 +113,6 @@ def consume_ingredients_from_recipe(user, recipe):
     
     return updated, skipped
 
-
 # --- Email Utilities ---
 def send_reset_email(user_email):
     token = s.dumps(user_email, salt='password-reset-salt')
@@ -166,7 +122,6 @@ def send_reset_email(user_email):
     msg['To'] = user_email
     
     reset_url = url_for('auth.reset_password', token=token, _external=True)
-    
     msg.set_content(
         f"Hello,\n\nA password reset has been requested for your Meal Engine account.\n"
         f"Please click the link below to reset your password. This link is valid for 30 minutes.\n\n"
@@ -174,7 +129,6 @@ def send_reset_email(user_email):
         f"If you did not request this, please ignore this email.\n\n"
         f"Thanks,\nThe Meal Engine Team"
     )
-
     try:
         with smtplib.SMTP(os.getenv('MAIL_SERVER'), int(os.getenv('MAIL_PORT'))) as server:
             if os.getenv('MAIL_USE_TLS', 'false').lower() == 'true':
