@@ -9,7 +9,7 @@
     .ingredient-details-form .form-group {
         margin-bottom: 0;
     }
-    .ingredient-row .col-md-5, .ingredient-row .col-md-2 {
+    .ingredient-row .col-md-5, .ingredient-row .col-md-2, .ingredient-row .col-md-1, .ingredient-row .col-md-3 {
         padding-top: 0.5rem;
         padding-bottom: 0.5rem;
     }
@@ -100,4 +100,104 @@
     </div>
 </div>
 
+<div class="modal fade" id="addToPantryModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-title">Add to Pantry</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="add-to-pantry-modal-form" action="{{ url_for('main.pantry') }}" method="POST">
+        <div class="modal-body">
+            <input type="hidden" name="action" value="add">
+            <input type="hidden" name="ingredient_id" id="modal-ingredient-id">
+            <div class="form-group">
+                <label for="modal-quantity" id="modal-quantity-label">Quantity</label>
+                <input type="number" step="0.01" class="form-control" id="modal-quantity" name="quantity" required>
+            </div>
+             <div class="form-group" id="modal-unit-group">
+                <label for="modal-unit">Unit</label>
+                <input type="text" class="form-control" id="modal-unit" name="unit" placeholder="(e.g., oz, grams, cups)">
+            </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.add-pantry-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const form = this.closest('.add-to-pantry-form');
+            const ingredientId = form.querySelector('input[name="ingredient_id"]').value;
+            const isContainer = this.dataset.isContainer === 'true';
+            
+            document.getElementById('modal-ingredient-id').value = ingredientId;
+            const quantityLabel = document.getElementById('modal-quantity-label');
+            const unitGroup = document.getElementById('modal-unit-group');
+            const unitInput = document.getElementById('modal-unit');
+
+            if (isContainer) {
+                const promptText = this.dataset.prompt || 'How many units are in this item?';
+                quantityLabel.textContent = promptText;
+                unitInput.value = this.dataset.unit || '';
+                unitGroup.style.display = 'none'; // Hide unit input for containers
+            } else {
+                quantityLabel.textContent = 'Quantity';
+                unitInput.value = '';
+                unitGroup.style.display = 'block';
+            }
+
+            $('#addToPantryModal').modal('show');
+        });
+    });
+
+    // When modal form is submitted, transfer modal data to the correct form
+    const modalForm = document.getElementById('add-to-pantry-modal-form');
+    modalForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const ingredientId = document.getElementById('modal-ingredient-id').value;
+        const quantity = document.getElementById('modal-quantity').value;
+        const unit = document.getElementById('modal-unit').value;
+        
+        // Find the actual form in the list and populate it
+        const actualForm = document.querySelector(`.add-to-pantry-form input[name="ingredient_id"][value="${ingredientId}"]`).closest('form');
+        
+        if (actualForm) {
+            const ingredient = actualForm.querySelector('.add-pantry-btn');
+            if (ingredient.dataset.isContainer === 'true') {
+                actualForm.querySelector('input[name="container_quantity"]').value = quantity;
+            } else {
+                 // For non-containers, we can just create the fields as they don't exist
+                let qtyInput = actualForm.querySelector('input[name="quantity"]');
+                if (!qtyInput) {
+                    qtyInput = document.createElement('input');
+                    qtyInput.type = 'hidden';
+                    qtyInput.name = 'quantity';
+                    actualForm.appendChild(qtyInput);
+                }
+                qtyInput.value = quantity;
+
+                let unitInputEl = actualForm.querySelector('input[name="unit"]');
+                if (!unitInputEl) {
+                    unitInputEl = document.createElement('input');
+                    unitInputEl.type = 'hidden';
+                    unitInputEl.name = 'unit';
+                    actualForm.appendChild(unitInputEl);
+                }
+                unitInputEl.value = unit;
+            }
+            actualForm.submit();
+        }
+    });
+});
+</script>
 {% endblock %}

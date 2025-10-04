@@ -161,12 +161,35 @@ def list_recipes():
 def pantry():
     if request.method == 'POST':
         action = request.form.get('action')
+        
         if action == 'delete':
             item = db.session.get(PantryItem, int(request.form.get('pantry_item_id')))
             if item and item.household_id == current_user.household_id:
                 flash(f'"{item.ingredient.name}" removed from your pantry.', 'success')
                 db.session.delete(item)
-            db.session.commit()
+        
+        elif action == 'add':
+            ingredient_id = int(request.form.get('ingredient_id'))
+            ingredient = db.session.get(Ingredient, ingredient_id)
+            if ingredient:
+                if not PantryItem.query.filter_by(ingredient_id=ingredient_id, household_id=current_user.household_id).first():
+                    quantity = float(request.form.get('container_quantity') or 1)
+                    unit = ingredient.consumable_unit if ingredient.is_container else ''
+                    new_item = PantryItem(
+                        ingredient_id=ingredient_id,
+                        quantity=quantity,
+                        unit=unit,
+                        household_id=current_user.household_id
+                    )
+                    db.session.add(new_item)
+                    award_achievement(current_user, 'Pantry Organizer')
+                    flash(f'"{ingredient.name}" added to pantry.', 'success')
+                else:
+                    flash(f'"{ingredient.name}" is already in your pantry.', 'info')
+            else:
+                flash('Ingredient not found.', 'danger')
+
+        db.session.commit()
         return redirect(url_for('main.pantry'))
 
     pantry_items = PantryItem.query.join(Ingredient).filter(
@@ -196,43 +219,9 @@ def list_ingredients():
     
     all_ingredients = base_query.order_by(Ingredient.category, Ingredient.name).all()
     
-    # We pass ingredient data, not pantry data, to this template
     ingredient_data = [{'ingredient': ing} for ing in all_ingredients]
     categories = ['Produce', 'Meat & Seafood', 'Dairy & Eggs', 'Pantry', 'Spices & Seasonings', 'Bakery', 'Frozen', 'Other']
     return render_template('ingredients.html', ingredient_data=ingredient_data, query=query, categories=categories)
-
-
-@main.route('/update-pantry', methods=['POST'])
-@login_required
-def update_pantry():
-    action = request.form.get('action')
-    if action == 'add':
-        ingredient_id = int(request.form.get('ingredient_id'))
-        ingredient = db.session.get(Ingredient, ingredient_id)
-        if not ingredient:
-            flash('Ingredient not found.', 'danger')
-            return redirect(url_for('main.list_ingredients'))
-
-        if not PantryItem.query.filter_by(ingredient_id=ingredient_id, household_id=current_user.household_id).first():
-            quantity = float(request.form.get('container_quantity') or 1)
-            unit = ingredient.consumable_unit if ingredient.is_container else ''
-
-            new_item = PantryItem(
-                ingredient_id=ingredient_id,
-                quantity=quantity,
-                unit=unit,
-                household_id=current_user.household_id
-            )
-            db.session.add(new_item)
-            award_achievement(current_user, 'Pantry Organizer')
-            flash(f'"{ingredient.name}" added to pantry.', 'success')
-        else:
-            flash(f'"{ingredient.name}" is already in your pantry.', 'info')
-        db.session.commit()
-        return redirect(url_for('main.pantry'))
-    
-    return redirect(url_for('main.list_ingredients'))
-
 
 @main.route('/update-ingredient-details', methods=['POST'])
 @login_required
@@ -248,6 +237,7 @@ def update_ingredient_details():
         flash(f'Details for "{ingredient.name}" updated.', 'success')
     return redirect(url_for('main.list_ingredients', query=request.args.get('query', '')))
 
+# The old /update-pantry route has been removed as its logic is now in /pantry
 
 @main.route('/recipe/add', methods=['GET', 'POST'])
 @login_required
