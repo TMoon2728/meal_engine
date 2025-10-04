@@ -75,6 +75,9 @@ class Ingredient(db.Model):
     category = db.Column(db.String(50), nullable=True, default='Pantry')
     recipe_links = db.relationship('RecipeIngredient', backref='ingredient', lazy=True)
     pantry_items = db.relationship('PantryItem', backref='ingredient', lazy=True)
+    # NEW FIELDS: For handling containers
+    is_container = db.Column(db.Boolean, default=False, nullable=False)
+    container_prompt = db.Column(db.String(255), nullable=True, default='How many individual units are in this item?')
 
 class RecipeIngredient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
