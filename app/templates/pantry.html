@@ -2,33 +2,10 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1><i class="fas fa-box-open"></i> My Pantry</h1>
+    <a href="{{ url_for('main.list_ingredients') }}" class="btn btn-secondary"><i class="fas fa-plus"></i> Add New Items</a>
 </div>
 
-<div class="card mb-4">
-    <div class="card-body">
-        <h5 class="card-title">Add Ingredient to Pantry</h5>
-        <form action="{{ url_for('pantry') }}" method="POST" class="form-inline">
-            <input type="hidden" name="action" value="add">
-            <div class="form-group col-6">
-                <select name="ingredient_id" class="form-control w-100" required>
-                    <option value="" disabled selected>-- Select an ingredient --</option>
-                    {% for ingredient in ingredients_to_add %}
-                        <option value="{{ ingredient.id }}">{{ ingredient.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group col-2">
-                <input type="number" name="quantity" class="form-control w-100" placeholder="Qty" value="1" step="0.1">
-            </div>
-            <div class="form-group col-2">
-                <input type="text" name="unit" class="form-control w-100" placeholder="Unit (e.g., cups)">
-            </div>
-            <div class="col-2">
-                <button type="submit" class="btn btn-primary btn-block">Add</button>
-            </div>
-        </form>
-    </div>
-</div>
+<p class="lead">This page shows only the items you currently have in stock. To add new types of ingredients to your master list, go to "Manage Ingredients".</p>
 
 <div class="card">
     <div class="card-body">
@@ -38,35 +15,21 @@
                 {% for item in pantry_items %}
                     <li class="list-group-item">
                         <div class="row align-items-center">
-                            <div class="col-md-3"><strong>{{ item.ingredient.name }}</strong></div>
-                            <!-- Exact Quantity Gauge -->
-                            <div class="col-md-5">
-                                <form action="{{ url_for('pantry') }}" method="POST" class="form-inline">
-                                    <input type="hidden" name="action" value="update_quantity">
-                                    <input type="hidden" name="pantry_item_id" value="{{ item.id }}">
-                                    <input type="number" name="quantity" class="form-control form-control-sm mr-2" value="{{ item.quantity }}" step="0.1" style="width: 80px;">
-                                    <span>{{ item.unit }}</span>
-                                    <button type="submit" class="btn btn-sm btn-secondary ml-2">Update Qty</button>
-                                </form>
+                            <div class="col-md-4"><strong>{{ item.ingredient.name }}</strong></div>
+                            
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center">
+                                    <span class="editable" data-field="quantity" data-pantry-id="{{ item.id }}">{{ item.quantity }}</span>
+                                    <span class="editable ml-2" data-field="unit" data-pantry-id="{{ item.id }}" data-placeholder="Unit">{{ item.unit or 'Unit' }}</span>
+                                    <span class="save-status ml-2"></span>
+                                </div>
                             </div>
-                            <!-- Stock Level Gauge -->
-                            <div class="col-md-3">
-                                <form action="{{ url_for('pantry') }}" method="POST">
-                                    <input type="hidden" name="action" value="update_stock">
-                                    <input type="hidden" name="pantry_item_id" value="{{ item.id }}">
-                                    <div class="btn-group btn-group-toggle" data-toggle="buttons">
-                                        <label class="btn btn-sm btn-outline-success {% if item.stock_level == 'Full' %}active{% endif %}"><input type="radio" name="stock_level" value="Full" onchange="this.form.submit()"> Full</label>
-                                        <label class="btn btn-sm btn-outline-warning {% if item.stock_level == 'Low' %}active{% endif %}"><input type="radio" name="stock_level" value="Low" onchange="this.form.submit()"> Low</label>
-                                        <label class="btn btn-sm btn-outline-danger {% if item.stock_level == 'Out' %}active{% endif %}"><input type="radio" name="stock_level" value="Out" onchange="this.form.submit()"> Out</label>
-                                    </div>
-                                </form>
-                            </div>
-                            <!-- Delete Button -->
-                            <div class="col-md-1 text-right">
-                                <form action="{{ url_for('pantry') }}" method="POST" onsubmit="return confirm('Are you sure?');">
+
+                            <div class="col-md-2 text-right">
+                                <form action="{{ url_for('main.pantry') }}" method="POST" onsubmit="return confirm('Are you sure you want to remove this item from your pantry?');">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="pantry_item_id" value="{{ item.id }}">
-                                    <button type="submit" class="btn btn-sm btn-light" title="Remove">×</button>
+                                    <button type="submit" class="btn btn-sm btn-light" title="Remove from Pantry">×</button>
                                 </form>
                             </div>
                         </div>
@@ -74,8 +37,68 @@
                 {% endfor %}
             </ul>
         {% else %}
-            <p class="text-muted">Your pantry is empty.</p>
+            <p class="text-muted">Your pantry is empty. Click "Add New Items" to stock it from your master ingredient list.</p>
         {% endif %}
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.editable').forEach(span => {
+        span.addEventListener('click', function() {
+            if (this.querySelector('input')) return;
+
+            const originalValue = this.textContent;
+            const inputType = this.dataset.field === 'quantity' ? 'number' : 'text';
+            const placeholder = this.dataset.placeholder || '';
+            
+            this.innerHTML = `<input type="text" class="form-control form-control-sm" value="${originalValue}" placeholder="${placeholder}" style="width: 120px;">`;
+            const input = this.querySelector('input');
+            input.type = inputType;
+            if (inputType === 'number') {
+                input.step = '0.01';
+            }
+            input.focus();
+
+            const saveChange = () => {
+                const newValue = input.value;
+                this.innerHTML = newValue || placeholder;
+
+                if (newValue !== originalValue) {
+                    const pantryId = this.dataset.pantryId;
+                    const field = this.dataset.field;
+                    const statusEl = this.closest('.d-flex').querySelector('.save-status');
+                    
+                    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                    fetch(`/api/pantry-item/${pantryId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [field]: newValue })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                        } else {
+                            statusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
+                            this.textContent = originalValue;
+                        }
+                        setTimeout(() => { statusEl.innerHTML = ''; }, 2000);
+                    });
+                }
+            };
+
+            input.addEventListener('blur', saveChange);
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                } else if (e.key === 'Escape') {
+                    this.innerHTML = originalValue;
+                }
+            });
+        });
+    });
+});
+</script>
 {% endblock %}

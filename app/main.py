@@ -156,58 +156,51 @@ def list_recipes():
         
     return render_template('recipes.html', page_class='page-recipes', recipes=recipes, query=query, pantry_filter_active=pantry_filter_active, favorites_filter_active=favorites_filter_active, sort_order=sort_order)
 
+@main.route('/pantry', methods=['GET', 'POST'])
+@login_required
+def pantry():
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'delete':
+            item = db.session.get(PantryItem, int(request.form.get('pantry_item_id')))
+            if item and item.household_id == current_user.household_id:
+                flash(f'"{item.ingredient.name}" removed from your pantry.', 'success')
+                db.session.delete(item)
+            db.session.commit()
+        return redirect(url_for('main.pantry'))
+
+    pantry_items = PantryItem.query.join(Ingredient).filter(
+        PantryItem.household_id == current_user.household_id
+    ).order_by(Ingredient.category, Ingredient.name).all()
+    
+    return render_template('pantry.html', pantry_items=pantry_items)
+
 @main.route('/ingredients', methods=['GET', 'POST'])
 @login_required
 def list_ingredients():
     if request.method == 'POST':
         name = request.form.get('name')
         if name and not Ingredient.query.filter(db.func.lower(Ingredient.name) == db.func.lower(name.strip())).first():
-            if name.lower().strip() == 'quantum spice':
-                award_achievement(current_user, 'Quantum Chef')
-                if not Recipe.query.filter_by(name="Schrödinger's Soufflé", household_id=current_user.household_id).first():
-                    souffle_instructions = "1. Preheat your oven to a state of quantum uncertainty..." # Abridged
-                    souffle_recipe = Recipe(name="Schrödinger's Soufflé", instructions=souffle_instructions, meal_type="Dessert", author=current_user, household_id=current_user.household_id)
-                    db.session.add(souffle_recipe)
-                    db.session.flush()
-                    quantum_ingredients = ["Quark-Flour", "Entangled Eggs", "Higgs Boson Sugar", "Gluon Gravy"]
-                    for ing_name in quantum_ingredients:
-                        ing_obj = Ingredient.query.filter_by(name=ing_name).first() or Ingredient(name=ing_name, category="Exotic")
-                        db.session.add(ing_obj)
-                        db.session.flush()
-                        recipe_ing = RecipeIngredient(recipe_id=souffle_recipe.id, ingredient_id=ing_obj.id, quantity=1, unit="measure")
-                        db.session.add(recipe_ing)
-                    flash("A strange energy emanates from your pantry... A new recipe has materialized!", "info")
-                db.session.commit()
-                return redirect(url_for('main.list_recipes'))
-            db.session.add(Ingredient(name=name.strip().title()))
+            new_ingredient = Ingredient(name=name.strip().title())
+            db.session.add(new_ingredient)
             db.session.commit()
             flash(f'"{name}" added to master ingredient list.', 'success')
         else:
-            flash(f'"{name}" already exists.', 'warning')
+            flash(f'"{name}" already exists or is invalid.', 'warning')
         return redirect(url_for('main.list_ingredients'))
     
     query = request.args.get('query', '')
-    stock_filter = request.args.get('filter', 'all')
     base_query = Ingredient.query
-    if query: base_query = base_query.filter(Ingredient.name.ilike(f"%{query}%"))
-    pantry_items = {item.ingredient_id: item for item in PantryItem.query.filter_by(household_id=current_user.household_id).all()}
-    if stock_filter == 'in_pantry':
-        base_query = base_query.filter(Ingredient.id.in_(pantry_items.keys()))
+    if query:
+        base_query = base_query.filter(Ingredient.name.ilike(f"%{query}%"))
     
     all_ingredients = base_query.order_by(Ingredient.category, Ingredient.name).all()
-    ingredient_data = [{'ingredient': ing, 'pantry_item': pantry_items.get(ing.id)} for ing in all_ingredients]
+    
+    # We pass ingredient data, not pantry data, to this template
+    ingredient_data = [{'ingredient': ing} for ing in all_ingredients]
     categories = ['Produce', 'Meat & Seafood', 'Dairy & Eggs', 'Pantry', 'Spices & Seasonings', 'Bakery', 'Frozen', 'Other']
-    return render_template('ingredients.html', ingredient_data=ingredient_data, query=query, stock_filter=stock_filter, categories=categories)
+    return render_template('ingredients.html', ingredient_data=ingredient_data, query=query, categories=categories)
 
-@main.route('/update-ingredient-category', methods=['POST'])
-@login_required
-def update_ingredient_category():
-    ingredient = db.session.get(Ingredient, int(request.form.get('ingredient_id')))
-    if ingredient:
-        ingredient.category = request.form.get('category')
-        db.session.commit()
-        flash(f'Updated category for "{ingredient.name}".', 'info')
-    return redirect(url_for('main.list_ingredients'))
 
 @main.route('/update-pantry', methods=['POST'])
 @login_required
@@ -221,8 +214,8 @@ def update_pantry():
             return redirect(url_for('main.list_ingredients'))
 
         if not PantryItem.query.filter_by(ingredient_id=ingredient_id, household_id=current_user.household_id).first():
-            quantity = float(request.form.get('container_quantity') or request.form.get('quantity', 1))
-            unit = ingredient.consumable_unit if ingredient.is_container else request.form.get('unit', '')
+            quantity = float(request.form.get('container_quantity') or 1)
+            unit = ingredient.consumable_unit if ingredient.is_container else ''
 
             new_item = PantryItem(
                 ingredient_id=ingredient_id,
@@ -232,32 +225,25 @@ def update_pantry():
             )
             db.session.add(new_item)
             award_achievement(current_user, 'Pantry Organizer')
-            flash(f'"{new_item.ingredient.name}" added to pantry.', 'success')
+            flash(f'"{ingredient.name}" added to pantry.', 'success')
+        else:
+            flash(f'"{ingredient.name}" is already in your pantry.', 'info')
+        db.session.commit()
+        return redirect(url_for('main.pantry'))
+    
+    return redirect(url_for('main.list_ingredients'))
 
-    elif action == 'update_quantity':
-        item = db.session.get(PantryItem, int(request.form.get('pantry_item_id')))
-        if item and item.household_id == current_user.household_id:
-            item.quantity = float(request.form.get('quantity', 0))
-            item.unit = request.form.get('unit', '')
-            flash(f'Updated "{item.ingredient.name}".', 'info')
-    elif action == 'delete':
-        item = db.session.get(PantryItem, int(request.form.get('pantry_item_id')))
-        if item and item.household_id == current_user.household_id:
-            flash(f'"{item.ingredient.name}" removed from pantry.', 'success')
-            db.session.delete(item)
-    db.session.commit()
-    return redirect(url_for('main.list_ingredients', filter=request.args.get('filter', 'all'), query=request.args.get('query', '')))
 
-# NEW ROUTE TO HANDLE CONTAINER SETTINGS
 @main.route('/update-ingredient-details', methods=['POST'])
 @login_required
 def update_ingredient_details():
     ingredient_id = request.form.get('ingredient_id')
     ingredient = db.session.get(Ingredient, int(ingredient_id))
     if ingredient:
+        ingredient.category = request.form.get('category')
         ingredient.is_container = 'is_container' in request.form
-        ingredient.consumable_unit = request.form.get('consumable_unit')
-        ingredient.container_prompt = request.form.get('container_prompt')
+        ingredient.consumable_unit = request.form.get('consumable_unit', '').strip() or None
+        ingredient.container_prompt = request.form.get('container_prompt', '').strip() or None
         db.session.commit()
         flash(f'Details for "{ingredient.name}" updated.', 'success')
     return redirect(url_for('main.list_ingredients', query=request.args.get('query', '')))
@@ -661,16 +647,15 @@ def shopping_list():
             pantry_item = pantry_stock[ing_id]
             in_pantry[name] = pantry_item
             try:
-                with ureg.context('cooking', substance=name.lower().replace(" ", "_")):
-                    required_qty = needed_qty_val * ureg(recipe_unit_str)
-                    pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
-                    if required_qty.is_compatible_with(pantry_qty):
-                        if pantry_qty.to(required_qty.units) >= required_qty:
-                            should_buy = False
-                        else:
-                            amount_to_buy = required_qty - pantry_qty.to(required_qty.units)
-                            buy_details = {'quantity': amount_to_buy.magnitude, 'units': {str(amount_to_buy.units)}, 'note': None, 'category': cat or 'Other'}
-            except (pint.errors.DimensionalityError, pint.errors.UndefinedUnitError, AttributeError):
+                required_qty = needed_qty_val * ureg(recipe_unit_str)
+                pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
+                if required_qty.is_compatible_with(pantry_qty):
+                    if pantry_qty.to(required_qty.units) >= required_qty:
+                        should_buy = False
+                    else:
+                        amount_to_buy = required_qty - pantry_qty.to(required_qty.units)
+                        buy_details = {'quantity': amount_to_buy.magnitude, 'units': {str(amount_to_buy.units)}, 'note': None, 'category': cat or 'Other'}
+            except (pint.errors.DimensionalityError, pint.errors.UndefinedUnitError):
                 buy_details['note'] = f"Unit Mismatch! Check pantry: you have {pantry_item.quantity} {pantry_item.unit or ''}"
         if should_buy: to_buy[name] = buy_details
     

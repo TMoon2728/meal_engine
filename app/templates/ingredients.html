@@ -9,11 +9,19 @@
     .ingredient-details-form .form-group {
         margin-bottom: 0;
     }
+    .ingredient-row .col-md-5, .ingredient-row .col-md-2 {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1><i class="fas fa-box-open"></i> Your Pantry & Master Ingredients</h1>
+    <h1><i class="fas fa-cogs"></i> Manage Master Ingredients</h1>
+    <a href="{{ url_for('main.pantry') }}" class="btn btn-primary"><i class="fas fa-box-open"></i> Go to My Pantry</a>
 </div>
+
+<p class="lead">This page is for managing the master list of all ingredients the application knows about. Here you can add new ingredients and configure advanced settings like "containers".</p>
+
 
 <div class="card p-3 mb-4">
     <h5 class="card-title">Add to Master Ingredient List</h5>
@@ -25,185 +33,71 @@
     </form>
 </div>
 
-<!-- Control Bar for Pantry -->
+<!-- Control Bar -->
 <div class="card p-3 mb-4">
-    <div class="row">
-        <div class="col-md-8">
-            <form method="GET" action="{{ url_for('main.list_ingredients') }}">
-                <div class="input-group">
-                    <input type="text" name="query" class="form-control" placeholder="Search all ingredients..." value="{{ query or '' }}">
-                    <div class="input-group-append">
-                        <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i></button>
-                    </div>
-                </div>
-            </form>
-        </div>
-        <div class="col-md-4">
-            <div class="btn-group w-100">
-                <a href="{{ url_for('main.list_ingredients', filter='all', query=query) }}" class="btn {% if stock_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">All Ingredients</a>
-                <a href="{{ url_for('main.list_ingredients', filter='in_pantry', query=query) }}" class="btn {% if stock_filter == 'in_pantry' %}btn-primary{% else %}btn-outline-primary{% endif %}">In My Pantry</a>
+    <form method="GET" action="{{ url_for('main.list_ingredients') }}">
+        <div class="input-group">
+            <input type="text" name="query" class="form-control" placeholder="Search all ingredients..." value="{{ query or '' }}">
+            <div class="input-group-append">
+                <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i> Search</button>
             </div>
         </div>
-    </div>
+    </form>
 </div>
 
 <div class="card">
     <div class="card-body">
-        <h5 class="card-title">Inventory Status</h5>
         <div class="row font-weight-bold border-bottom pb-2 mb-2 d-none d-md-flex">
-            <div class="col-md-2">Ingredient</div>
+            <div class="col-md-3">Ingredient</div>
             <div class="col-md-2">Category</div>
-            <div class="col-md-5">Container Settings</div>
-            <div class="col-md-3">Pantry Status</div>
+            <div class="col-md-6">Container Settings</div>
+            <div class="col-md-1">Action</div>
         </div>
         {% for group in ingredient_data | groupby('ingredient.category') %}
             <h4 class="mt-4">{{ group.grouper or 'Uncategorized' }}</h4>
-            <ul class="list-group">
+            <ul class="list-group list-group-flush">
                 {% for data in group.list %}
                     <li class="list-group-item">
-                        <div class="row align-items-center">
-                            <!-- Column for Ingredient Name -->
-                            <div class="col-md-2"><strong>{{ data.ingredient.name }}</strong></div>
+                        <form action="{{ url_for('main.update_ingredient_details') }}" method="POST">
+                        <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
+                        <div class="row align-items-center ingredient-row">
+                            <div class="col-md-3"><strong>{{ data.ingredient.name }}</strong></div>
                             
-                            <!-- Column for Category and Container Settings -->
-                            <div class="col-md-7">
-                                <form action="{{ url_for('main.update_ingredient_details') }}" method="POST" class="ingredient-details-form">
-                                    <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
-                                    <!-- Category -->
-                                    <div style="min-width: 120px;">
-                                        <select name="category" class="form-control form-control-sm">
-                                            {% for cat in categories %}<option value="{{ cat }}" {% if data.ingredient.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
-                                        </select>
-                                    </div>
-                                    <!-- Container Checkbox -->
+                            <div class="col-md-2">
+                                <select name="category" class="form-control form-control-sm">
+                                    {% for cat in categories %}<option value="{{ cat }}" {% if data.ingredient.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="ingredient-details-form">
                                     <div class="form-check">
                                         <input type="checkbox" name="is_container" class="form-check-input" {% if data.ingredient.is_container %}checked{% endif %}>
                                         <label class="form-check-label small">Is Container?</label>
                                     </div>
-                                    <!-- Consumable Unit -->
                                     <div class="form-group">
                                         <input type="text" name="consumable_unit" class="form-control form-control-sm" placeholder="Unit (e.g., slice)" value="{{ data.ingredient.consumable_unit or '' }}">
                                     </div>
-                                    <!-- Prompt -->
                                     <div class="form-group flex-grow-1">
                                         <input type="text" name="container_prompt" class="form-control form-control-sm" placeholder="Prompt Question" value="{{ data.ingredient.container_prompt or '' }}">
                                     </div>
-                                    <button type="submit" class="btn btn-sm btn-secondary">Save</button>
-                                </form>
+                                </div>
                             </div>
-
-                            <!-- Column for Pantry Status -->
-                            <div class="col-md-3">
-                            {% if data.pantry_item %}
-                                <div class="d-flex align-items-center">
-                                    <span class="editable" data-field="quantity" data-pantry-id="{{ data.pantry_item.id }}">{{ data.pantry_item.quantity }}</span>
-                                    <span class="editable ml-2" data-field="unit" data-pantry-id="{{ data.pantry_item.id }}" data-placeholder="Unit">{{ data.pantry_item.unit or 'Unit' }}</span>
-                                    <span class="save-status ml-2"></span>
-                                    <!-- THIS IS THE FIX: The delete button is now in its own separate form -->
-                                    <form action="{{ url_for('main.update_pantry') }}" method="POST" onsubmit="return confirm('Are you sure?');" class="ml-auto">
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="pantry_item_id" value="{{ data.pantry_item.id }}">
-                                        <button type="submit" class="btn btn-sm btn-light" title="Remove from Pantry">×</button>
-                                    </form>
-                                </div>
-                            {% else %}
-                                <div class="text-right">
-                                    <form action="{{ url_for('main.update_pantry') }}" method="POST" class="add-to-pantry-form d-inline">
-                                        <input type="hidden" name="action" value="add">
-                                        <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
-                                        <input type="hidden" name="container_quantity" class="container-quantity-input">
-                                        <button type="submit" class="btn btn-sm btn-success add-pantry-btn"
-                                                data-is-container="{{ 'true' if data.ingredient.is_container else 'false' }}"
-                                                data-prompt="{{ data.ingredient.container_prompt or 'How many units are in this item?' }}">
-                                            Add to Pantry
-                                        </button>
-                                    </form>
-                                </div>
-                            {% endif %}
+                            
+                            <div class="col-md-1 text-right">
+                                <button type="submit" class="btn btn-sm btn-secondary">Save</button>
                             </div>
                         </div>
+                        </form>
                     </li>
                 {% endfor %}
             </ul>
         {% endfor %}
+
         {% if not ingredient_data %}
-            <p class="text-muted">No ingredients match your current filter. Try showing all ingredients.</p>
+            <p class="text-muted">No ingredients match your search.</p>
         {% endif %}
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.add-pantry-btn').forEach(button => {
-        button.addEventListener('click', function(e) {
-            if (this.dataset.isContainer === 'true') {
-                e.preventDefault();
-                const promptText = this.dataset.prompt;
-                const result = prompt(promptText);
-                
-                if (result && !isNaN(result) && Number(result) > 0) {
-                    const form = this.closest('.add-to-pantry-form');
-                    form.querySelector('.container-quantity-input').value = result;
-                    form.submit();
-                } else if (result !== null) {
-                    alert('Please enter a valid number greater than 0.');
-                }
-            }
-        });
-    });
-
-    document.querySelectorAll('.editable').forEach(span => {
-        span.addEventListener('click', function() {
-            if (this.querySelector('input')) return;
-
-            const originalValue = this.textContent;
-            const inputType = this.dataset.field === 'quantity' ? 'number' : 'text';
-            const placeholder = this.dataset.placeholder || '';
-            
-            this.innerHTML = `<input type="text" class="form-control form-control-sm" value="${originalValue}" placeholder="${placeholder}" style="width: 80px;">`;
-            const input = this.querySelector('input');
-            input.type = inputType;
-            input.focus();
-
-            const saveChange = () => {
-                const newValue = input.value;
-                this.innerHTML = newValue || placeholder;
-
-                if (newValue !== originalValue) {
-                    const pantryId = this.dataset.pantryId;
-                    const field = this.dataset.field;
-                    const statusEl = this.closest('.d-flex').querySelector('.save-status');
-                    
-                    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-                    fetch(`/api/pantry-item/${pantryId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ [field]: newValue })
-                    })
-                    .then(res => res.json())
-                    .then(.data => {
-                        if (data.success) {
-                            statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
-                        } else {
-                            statusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
-                            this.textContent = originalValue;
-                        }
-                        setTimeout(() => { statusEl.innerHTML = ''; }, 2000);
-                    });
-                }
-            };
-
-            input.addEventListener('blur', saveChange);
-            input.addEventListener('keydown', e => {
-                if (e.key === 'Enter') {
-                    input.blur();
-                } else if (e.key === 'Escape') {
-                    this.innerHTML = originalValue;
-                }
-            });
-        });
-    });
-});
-</script>
 {% endblock %}

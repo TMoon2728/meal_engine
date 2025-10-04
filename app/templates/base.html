@@ -82,7 +82,9 @@
                 <div class="dropdown-menu" aria-labelledby="kitchenDropdown">
                   <a class="dropdown-item" href="{{ url_for('main.list_recipes') }}">Recipes</a>
                   <a class="dropdown-item" href="{{ url_for('main.saved_meals') }}">Saved Meals</a>
-                  <a class="dropdown-item" href="{{ url_for('main.list_ingredients') }}">Pantry</a>
+                  <a class="dropdown-item" href="{{ url_for('main.pantry') }}">My Pantry</a>
+                  <div class="dropdown-divider"></div>
+                  <a class="dropdown-item" href="{{ url_for('main.list_ingredients') }}"><i class="fas fa-cog"></i> Manage Ingredients</a>
                 </div>
               </li>
               <li class="nav-item"><a class="nav-link" href="{{ url_for('main.shopping_list') }}">Shopping List</a></li>
