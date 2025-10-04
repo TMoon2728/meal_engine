@@ -237,8 +237,6 @@ def update_ingredient_details():
         flash(f'Details for "{ingredient.name}" updated.', 'success')
     return redirect(url_for('main.list_ingredients', query=request.args.get('query', '')))
 
-# The old /update-pantry route has been removed as its logic is now in /pantry
-
 @main.route('/recipe/add', methods=['GET', 'POST'])
 @login_required
 def add_recipe():
