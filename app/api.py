@@ -5,16 +5,17 @@ import random
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
-from flask import Blueprint, jsonify, request, flash, url_for
+from flask import Blueprint, jsonify, request, flash, url_for, redirect
 from flask_login import current_user, login_required
 from sqlalchemy import and_
+from datetime import date, timedelta, datetime
 
 from . import db
 from .decorators import require_ai_credits
 from .models import (Ingredient, MealPlan, PantryItem, Recipe,
-                     RecipeIngredient, SavedMeal, HistoricalPlan)
+                     RecipeIngredient, SavedMeal, HistoricalPlan, ShoppingListItem)
 from .utils import (award_achievement, convert_quantity_to_float,
-                    deduct_ai_credit, sanitize_unit, ureg)
+                    deduct_ai_credit, sanitize_unit, ureg, pint)
 
 api = Blueprint('api', __name__)
 
@@ -460,3 +461,86 @@ def load_historical_plan(plan_id):
         if entry.recipe_id: item_data = {'type': 'recipe', 'id': entry.recipe.id, 'name': entry.recipe.name, 'meal_type': entry.recipe.meal_type}
         plan_data[day_key][entry.meal_slot].append(item_data)
     return jsonify(plan_data)
+
+@api.route('/stock-pantry-from-list', methods=['POST'])
+@login_required
+def stock_pantry_from_list():
+    data = request.get_json()
+    items_to_add = data.get('items', [])
+
+    try:
+        for item_data in items_to_add:
+            item_name = item_data.get('name')
+            if not item_name: continue
+
+            ingredient = Ingredient.query.filter(db.func.lower(Ingredient.name) == db.func.lower(item_name)).first()
+            if not ingredient:
+                ingredient = Ingredient(name=item_name.title(), category='Other')
+                db.session.add(ingredient)
+                db.session.flush()
+
+            pantry_item = PantryItem.query.filter_by(
+                household_id=current_user.household_id,
+                ingredient_id=ingredient.id
+            ).first()
+
+            quantity_to_add = convert_quantity_to_float(item_data.get('quantity', '0'))
+            unit_to_add = item_data.get('unit', '')
+
+            if pantry_item:
+                try:
+                    with ureg.context('cooking', substance=ingredient.name.lower().replace(" ", "_")):
+                        existing_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
+                        new_qty = quantity_to_add * ureg(sanitize_unit(unit_to_add))
+
+                        if existing_qty.is_compatible_with(new_qty):
+                            pantry_item.quantity = (existing_qty + new_qty.to(existing_qty.units)).magnitude
+                        else:
+                            pantry_item.quantity += quantity_to_add
+                except (pint.errors.DimensionalityError, pint.errors.UndefinedUnitError):
+                    pantry_item.quantity += quantity_to_add
+            else:
+                pantry_item = PantryItem(
+                    household_id=current_user.household_id,
+                    ingredient_id=ingredient.id,
+                    quantity=quantity_to_add,
+                    unit=unit_to_add
+                )
+                db.session.add(pantry_item)
+
+            manual_id = item_data.get('manual_id')
+            if manual_id:
+                manual_item = db.session.get(ShoppingListItem, int(manual_id))
+                if manual_item and manual_item.household_id == current_user.household_id:
+                    db.session.delete(manual_item)
+        
+        db.session.commit()
+        flash(f'{len(items_to_add)} items successfully added to your pantry!', 'success')
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api.route('/pantry-item/<int:pantry_item_id>', methods=['POST'])
+@login_required
+def update_pantry_item(pantry_item_id):
+    item = db.session.get(PantryItem, pantry_item_id)
+    if not item or item.household_id != current_user.household_id:
+        return jsonify({'success': False, 'message': 'Item not found.'}), 404
+    
+    data = request.get_json()
+    new_quantity = data.get('quantity')
+    new_unit = data.get('unit')
+
+    if new_quantity is not None:
+        try:
+            item.quantity = float(new_quantity)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid quantity.'}), 400
+
+    if new_unit is not None:
+        item.unit = new_unit
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Pantry item updated.'})

@@ -60,17 +60,10 @@
                             </div>
 
                             {% if data.pantry_item %}
-                                <!-- Pantry Quantity Controls -->
-                                <div class="col-md-5">
-                                    <form action="{{ url_for('main.update_pantry') }}" method="POST" class="form-inline">
-                                        <input type="hidden" name="action" value="update_quantity">
-                                        <input type="hidden" name="pantry_item_id" value="{{ data.pantry_item.id }}">
-                                        <label for="quantity-{{data.pantry_item.id}}" class="sr-only">Quantity</label>
-                                        <input type="number" id="quantity-{{data.pantry_item.id}}" name="quantity" class="form-control form-control-sm mr-2" value="{{ data.pantry_item.quantity }}" step="0.01" style="width: 100px;">
-                                        <label for="unit-{{data.pantry_item.id}}" class="sr-only">Unit</label>
-                                        <input type="text" id="unit-{{data.pantry_item.id}}" name="unit" class="form-control form-control-sm mr-2" value="{{ data.pantry_item.unit or '' }}" placeholder="Unit (e.g., lbs, cups)">
-                                        <button type="submit" class="btn btn-sm btn-secondary ml-2">Update</button>
-                                    </form>
+                                <div class="col-md-5 d-flex align-items-center">
+                                    <span class="editable" data-field="quantity" data-pantry-id="{{ data.pantry_item.id }}">{{ data.pantry_item.quantity }}</span>
+                                    <span class="editable ml-2" data-field="unit" data-pantry-id="{{ data.pantry_item.id }}" data-placeholder="Unit">{{ data.pantry_item.unit or 'Unit' }}</span>
+                                    <span class="save-status ml-2"></span>
                                 </div>
                                 <div class="col-md-1 text-right">
                                     <form action="{{ url_for('main.update_pantry') }}" method="POST" onsubmit="return confirm('Are you sure?');">
@@ -98,4 +91,61 @@
         {% endif %}
     </div>
   </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.editable').forEach(span => {
+        span.addEventListener('click', function() {
+            if (this.querySelector('input')) return;
+
+            const originalValue = this.textContent;
+            const inputType = this.dataset.field === 'quantity' ? 'number' : 'text';
+            const placeholder = this.dataset.placeholder || '';
+            
+            this.innerHTML = `<input type="text" class="form-control form-control-sm" value="${originalValue}" placeholder="${placeholder}" style="width: 120px;">`;
+            const input = this.querySelector('input');
+            input.type = inputType;
+            input.focus();
+
+            const saveChange = () => {
+                const newValue = input.value;
+                this.innerHTML = newValue || placeholder;
+
+                if (newValue !== originalValue) {
+                    const pantryId = this.dataset.pantryId;
+                    const field = this.dataset.field;
+                    const statusEl = this.closest('.row').querySelector('.save-status');
+                    
+                    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                    fetch(`/api/pantry-item/${pantryId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [field]: newValue })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                        } else {
+                            statusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
+                            this.textContent = originalValue;
+                        }
+                        setTimeout(() => { statusEl.innerHTML = ''; }, 2000);
+                    });
+                }
+            };
+
+            input.addEventListener('blur', saveChange);
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                } else if (e.key === 'Escape') {
+                    this.innerHTML = originalValue;
+                }
+            });
+        });
+    });
+});
+</script>
 {% endblock %}
