@@ -60,7 +60,7 @@ def convert_quantity_to_float(quantity_str):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
-# THIS IS THE SIMPLIFIED, CORRECT SETUP
+# This is the simplified, correct setup.
 ureg = pint.UnitRegistry()
 ureg.load_definitions('app/unit_definitions.txt')
 
