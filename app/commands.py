@@ -8,7 +8,6 @@ from .models import Achievement
 def init_achievements_command():
     """Initializes the database with all available achievements."""
     
-    # A list of all achievements to be added to the database
     achievements_to_add = [
         {'name': 'First Steps', 'description': 'You created your account!', 'icon': 'fa-shoe-prints'},
         {'name': 'The Creator', 'description': 'You added your very first recipe.', 'icon': 'fa-pencil-alt'},
