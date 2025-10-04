@@ -98,23 +98,43 @@ ureg.add_context(cooking_context)
 def sanitize_unit(unit_str):
     """Sanitizes and maps common cooking units to Pint-compatible units."""
     if not unit_str: return "dimensionless"
-    unit_str = unit_str.lower().strip()
+    unit_str = unit_str.lower().strip().rstrip('s') # Strip plurals automatically
     
     unit_map = {
-        'oz': 'fluid_ounce', 'ounce': 'fluid_ounce', 'ounces': 'fluid_ounce',
-        'lb': 'pound', 'lbs': 'pound',
-        'cup': 'cup', 'cups': 'cup',
-        'tsp': 'teaspoon', 'tsps': 'teaspoon', 'teaspoons': 'teaspoon',
-        'tbsp': 'tablespoon', 'tbsps': 'tablespoon', 'tablespoons': 'tablespoon',
-        'g': 'gram', 'grams': 'gram',
-        'kg': 'kilogram', 'kgs': 'kilogram',
-        'ml': 'milliliter', 'milliliters': 'milliliter',
-        'stick': 'stick_of_butter'
+        # Standard Volume/Weight
+        'oz': 'fluid_ounce', 'ounce': 'fluid_ounce',
+        'lb': 'pound',
+        'cup': 'cup',
+        'tsp': 'teaspoon', 'teaspoon': 'teaspoon',
+        'tbsp': 'tablespoon', 'tablespoon': 'tablespoon',
+        'g': 'gram', 'gram': 'gram',
+        'kg': 'kilogram',
+        'ml': 'milliliter',
+        
+        # Custom Mapped Units
+        'stick': 'stick_of_butter',
+        
+        # Countable Dimensionless Units
+        'slice': 'slice',
+        'each': 'each',
+        'clove': 'clove',
+        'head': 'head',
+        'sprig': 'sprig',
+        'bunch': 'bunch',
+        'stalk': 'stalk',
+        'ear': 'ear',
+        'fillet': 'fillet',
+        'leaf': 'leaf',
+        'piece': 'piece',
+        'pat': 'pat',
+        'link': 'link',
+        'strip': 'strip',
+        'sheet': 'sheet',
     }
+    # Return the mapped unit, or the original string if no mapping is found
     return unit_map.get(unit_str, unit_str)
 
 
-# NEW HELPER FUNCTION
 def consume_ingredients_from_recipe(user, recipe):
     """
     Deducts a recipe's ingredients from a user's household pantry.
@@ -134,14 +154,12 @@ def consume_ingredients_from_recipe(user, recipe):
                 if not recipe_qty.is_compatible_with(pantry_qty):
                     raise pint.errors.DimensionalityError(recipe_qty.units, pantry_qty.units, "Units are not compatible")
 
-                # Perform the subtraction
                 new_pantry_qty = pantry_qty.to(recipe_qty.units) - recipe_qty
                 
-                # Convert back to the pantry item's original unit for storage
                 pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
                 updated.append(req_ing.ingredient.name)
             except Exception as e:
-                skipped.append(f"{req_ing.ingredient.name} (Error: {e})")
+                skipped.append(f"{req_ing.ingredient.name} (Error: '{e}')")
     
     return updated, skipped
 
