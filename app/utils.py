@@ -4,7 +4,7 @@ import smtplib
 from email.message import EmailMessage
 from flask import flash, url_for, current_app
 from . import db, s
-from .models import Achievement, UserAchievement, PantryItem
+from .models import Achievement, UserAchievement, PantryItem, Ingredient
 
 # --- Achievement Utilities ---
 def award_achievement(user, achievement_name):
@@ -137,29 +137,56 @@ def sanitize_unit(unit_str):
 
 def consume_ingredients_from_recipe(user, recipe):
     """
-    Deducts a recipe's ingredients from a user's household pantry.
-    Returns two lists: updated items and skipped items.
+    Deducts a recipe's ingredients from a user's household pantry using smart-search logic.
     """
-    pantry_items = {item.ingredient_id: item for item in user.household.pantry_items}
     updated, skipped = [], []
+    all_pantry_items = PantryItem.query.filter_by(household_id=user.household_id).all()
+
     for req_ing in recipe.ingredients:
-        if not req_ing.quantity or req_ing.ingredient_id not in pantry_items:
+        if not req_ing.quantity or req_ing.quantity <= 0:
             continue
-        pantry_item = pantry_items[req_ing.ingredient_id]
-        with ureg.context('cooking', substance=req_ing.ingredient.name.lower().replace(" ", "_")):
-            try:
+
+        pantry_item = None
+        # Step 1: Look for an exact match
+        for item in all_pantry_items:
+            if item.ingredient_id == req_ing.ingredient_id:
+                pantry_item = item
+                break
+        
+        # Step 2: If no exact match, try a smart search
+        if not pantry_item:
+            search_term = req_ing.ingredient.name
+            substitutes = [
+                item for item in all_pantry_items 
+                if search_term.lower() in item.ingredient.name.lower()
+            ]
+            if len(substitutes) == 1:
+                pantry_item = substitutes[0]
+            elif len(substitutes) > 1:
+                sub_names = ", ".join([s.ingredient.name for s in substitutes])
+                skipped.append(f"{search_term} (Multiple substitutes found: {sub_names})")
+                continue
+
+        # If we still haven't found a pantry item, skip
+        if not pantry_item:
+            continue
+        
+        # Proceed with the found pantry item (either exact or substitute)
+        try:
+            with ureg.context('cooking', substance=pantry_item.ingredient.name.lower().replace(" ", "_")):
                 recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
                 pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
                 
                 if not recipe_qty.is_compatible_with(pantry_qty):
-                    raise pint.errors.DimensionalityError(recipe_qty.units, pantry_qty.units, "Units are not compatible")
+                    raise pint.errors.DimensionalityError(recipe_qty.units, pantry_qty.units)
 
                 new_pantry_qty = pantry_qty.to(recipe_qty.units) - recipe_qty
                 
                 pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
-                updated.append(req_ing.ingredient.name)
-            except Exception as e:
-                skipped.append(f"{req_ing.ingredient.name} (Error: '{e}')")
+                updated.append(pantry_item.ingredient.name)
+        except Exception as e:
+            error_message = str(e) if str(e) else "Unit Mismatch"
+            skipped.append(f"{pantry_item.ingredient.name} (Error: {error_message})")
     
     return updated, skipped
 
