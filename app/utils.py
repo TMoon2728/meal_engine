@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import os
 import pint
 import smtplib
@@ -193,6 +192,8 @@ def send_reset_email(user_email):
         return True
     except Exception as e:
         current_app.logger.error(f"Failed to send password reset email: {e}")
+<<<<<<< HEAD
+=======
 =======
 import os
 import pint
@@ -389,4 +390,5 @@ def send_reset_email(user_email):
     except Exception as e:
         current_app.logger.error(f"Failed to send password reset email: {e}")
 >>>>>>> 10a1ada6012acaefd4dc4202fac73788c76da402
+>>>>>>> 74f695caac9e9279bbe44e19a72542416c5d8a2c
         return False
