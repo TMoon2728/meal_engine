@@ -15,7 +15,7 @@ from .decorators import require_ai_credits
 from .models import (Ingredient, MealPlan, PantryItem, Recipe,
                      RecipeIngredient, SavedMeal, HistoricalPlan, ShoppingListItem)
 from .utils import (award_achievement, convert_quantity_to_float,
-                    deduct_ai_credit, sanitize_unit, ureg, pint)
+                    deduct_ai_credit, sanitize_unit, ureg, pint, consume_ingredients_from_recipe)
 
 api = Blueprint('api', __name__)
 
@@ -412,38 +412,45 @@ def search_recipes_api():
 def get_saved_meals():
     return jsonify([{'id': meal.id, 'name': meal.name, 'recipes': [{'id': r.id, 'name': r.name, 'meal_type': r.meal_type} for r in meal.recipes]} for meal in SavedMeal.query.filter_by(household_id=current_user.household_id).all()])
 
-@api.route('/consume-recipe/<int:recipe_id>', methods=['POST'])
-@login_required
-def consume_recipe(recipe_id):
-    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
-    pantry_items = {item.ingredient_id: item for item in current_user.household.pantry_items}
-    updated, skipped = [], []
-    for req_ing in recipe.ingredients:
-        if not req_ing.quantity or req_ing.ingredient_id not in pantry_items: continue
-        pantry_item = pantry_items[req_ing.ingredient_id]
-        with ureg.context('cooking', substance=req_ing.ingredient.name.lower().replace(" ", "_")):
-            try:
-                recipe_qty, pantry_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit)), pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
-                if not recipe_qty.is_compatible_with(pantry_qty): raise pint.errors.DimensionalityError(recipe_qty.units, pantry_qty.units)
-                new_pantry_qty = pantry_qty.to(recipe_qty.units) - recipe_qty
-                pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
-                updated.append(req_ing.ingredient.name)
-            except Exception:
-                skipped.append(f"{req_ing.ingredient.name} (Unit conversion failed)")
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Pantry updated.', 'updated': updated, 'skipped': skipped})
-
 @api.route('/mark-meal-eaten', methods=['POST'])
 @login_required
 def mark_meal_eaten():
     data = request.get_json()
     try:
-        meals_to_update = MealPlan.query.filter_by(household_id=current_user.household_id, meal_date=datetime.strptime(data.get('date'), '%Y-%m-%d').date(), meal_slot=data.get('slot')).all()
-        if not meals_to_update: return jsonify({'success': True, 'message': 'No meals to mark.'})
+        meal_date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
+        meal_slot = data.get('slot')
+        
+        meals_to_update = MealPlan.query.filter_by(
+            household_id=current_user.household_id,
+            meal_date=meal_date,
+            meal_slot=meal_slot
+        ).all()
+
+        if not meals_to_update:
+            return jsonify({'success': True, 'message': 'No meals to mark.'})
+
         new_status = not meals_to_update[0].is_eaten
-        for meal in meals_to_update: meal.is_eaten = new_status
+        
+        for meal in meals_to_update:
+            meal.is_eaten = new_status
+
+        if new_status:  # Only consume ingredients when marking as EATEN
+            all_updated_items = set()
+            all_skipped_items = set()
+            for meal in meals_to_update:
+                if meal.recipe:
+                    updated, skipped = consume_ingredients_from_recipe(current_user, meal.recipe)
+                    all_updated_items.update(updated)
+                    all_skipped_items.update(skipped)
+            
+            if all_updated_items:
+                flash(f'Pantry updated for: {", ".join(list(all_updated_items)[:5])}.', 'info')
+            if all_skipped_items:
+                flash(f'Could not update pantry for: {", ".join(list(all_skipped_items)[:3])}. Please check units.', 'warning')
+
         db.session.commit()
         return jsonify({'success': True, 'is_eaten': new_status})
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

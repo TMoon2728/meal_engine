@@ -4,7 +4,7 @@ import smtplib
 from email.message import EmailMessage
 from flask import flash, url_for, current_app
 from . import db, s
-from .models import Achievement, UserAchievement
+from .models import Achievement, UserAchievement, PantryItem
 
 # --- Achievement Utilities ---
 def award_achievement(user, achievement_name):
@@ -60,11 +60,8 @@ def convert_quantity_to_float(quantity_str):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
-# CORRECTED: Initialize with default units first.
 ureg = pint.UnitRegistry()
-# THEN load our custom definitions file, which adds to the defaults.
 ureg.load_definitions('app/unit_definitions.txt')
-
 
 cooking_conversions = {
     'all_purpose_flour': {'cup': '120 * gram'}, 'bread_flour': {'cup': '127 * gram'},
@@ -101,20 +98,70 @@ ureg.add_context(cooking_context)
 def sanitize_unit(unit_str):
     """Sanitizes and maps common cooking units to Pint-compatible units."""
     if not unit_str: return "dimensionless"
-    unit_str = unit_str.lower().strip()
+    unit_str = unit_str.lower().strip().rstrip('s') # Strip plurals automatically
     
     unit_map = {
-        'oz': 'fluid_ounce', 'ounce': 'fluid_ounce', 'ounces': 'fluid_ounce',
-        'lb': 'pound', 'lbs': 'pound',
-        'cup': 'cup', 'cups': 'cup',
-        'tsp': 'teaspoon', 'tsps': 'teaspoon', 'teaspoons': 'teaspoon',
-        'tbsp': 'tablespoon', 'tbsps': 'tablespoon', 'tablespoons': 'tablespoon',
-        'g': 'gram', 'grams': 'gram',
-        'kg': 'kilogram', 'kgs': 'kilogram',
-        'ml': 'milliliter', 'milliliters': 'milliliter',
-        'stick': 'stick_of_butter'
+        # Standard Volume/Weight
+        'oz': 'fluid_ounce', 'ounce': 'fluid_ounce',
+        'lb': 'pound',
+        'cup': 'cup',
+        'tsp': 'teaspoon', 'teaspoon': 'teaspoon',
+        'tbsp': 'tablespoon', 'tablespoon': 'tablespoon',
+        'g': 'gram', 'gram': 'gram',
+        'kg': 'kilogram',
+        'ml': 'milliliter',
+        
+        # Custom Mapped Units
+        'stick': 'stick_of_butter',
+        
+        # Countable Dimensionless Units
+        'slice': 'slice',
+        'each': 'each',
+        'clove': 'clove',
+        'head': 'head',
+        'sprig': 'sprig',
+        'bunch': 'bunch',
+        'stalk': 'stalk',
+        'ear': 'ear',
+        'fillet': 'fillet',
+        'leaf': 'leaf',
+        'piece': 'piece',
+        'pat': 'pat',
+        'link': 'link',
+        'strip': 'strip',
+        'sheet': 'sheet',
     }
+    # Return the mapped unit, or the original string if no mapping is found
     return unit_map.get(unit_str, unit_str)
+
+
+def consume_ingredients_from_recipe(user, recipe):
+    """
+    Deducts a recipe's ingredients from a user's household pantry.
+    Returns two lists: updated items and skipped items.
+    """
+    pantry_items = {item.ingredient_id: item for item in user.household.pantry_items}
+    updated, skipped = [], []
+    for req_ing in recipe.ingredients:
+        if not req_ing.quantity or req_ing.ingredient_id not in pantry_items:
+            continue
+        pantry_item = pantry_items[req_ing.ingredient_id]
+        with ureg.context('cooking', substance=req_ing.ingredient.name.lower().replace(" ", "_")):
+            try:
+                recipe_qty = req_ing.quantity * ureg(sanitize_unit(req_ing.unit))
+                pantry_qty = pantry_item.quantity * ureg(sanitize_unit(pantry_item.unit))
+                
+                if not recipe_qty.is_compatible_with(pantry_qty):
+                    raise pint.errors.DimensionalityError(recipe_qty.units, pantry_qty.units, "Units are not compatible")
+
+                new_pantry_qty = pantry_qty.to(recipe_qty.units) - recipe_qty
+                
+                pantry_item.quantity = max(0, new_pantry_qty.to(pantry_qty.units).magnitude)
+                updated.append(req_ing.ingredient.name)
+            except Exception as e:
+                skipped.append(f"{req_ing.ingredient.name} (Error: '{e}')")
+    
+    return updated, skipped
 
 
 # --- Email Utilities ---

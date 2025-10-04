@@ -47,7 +47,6 @@
                         <div class="row align-items-center">
                             <div class="col-md-3"><strong>{{ data.ingredient.name }}</strong></div>
                             
-                            <!-- Category Selector -->
                             <div class="col-md-3">
                                 <form action="{{ url_for('main.update_ingredient_category') }}" method="POST">
                                     <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
@@ -72,11 +71,17 @@
                                     </form>
                                 </div>
                             {% else %}
-                                <!-- Add to Pantry Button -->
                                 <div class="col-md-6 text-right">
-                                    <form action="{{ url_for('main.update_pantry') }}" method="POST">
-                                        <input type="hidden" name="action" value="add"><input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
-                                        <button type="submit" class="btn btn-sm btn-success">Add to Pantry</button>
+                                    <form action="{{ url_for('main.update_pantry') }}" method="POST" class="add-to-pantry-form">
+                                        <input type="hidden" name="action" value="add">
+                                        <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
+                                        <input type="hidden" name="container_quantity" class="container-quantity-input">
+                                        <button type="submit" class="btn btn-sm btn-success add-pantry-btn"
+                                                data-is-container="{{ 'true' if data.ingredient.is_container else 'false' }}"
+                                                data-prompt="{{ data.ingredient.container_prompt or 'How many units are in this item?' }}"
+                                                data-unit="{{ data.ingredient.consumable_unit or '' }}">
+                                            Add to Pantry
+                                        </button>
                                     </form>
                                 </div>
                             {% endif %}
@@ -94,6 +99,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.add-pantry-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            if (this.dataset.isContainer === 'true') {
+                e.preventDefault();
+                const promptText = this.dataset.prompt;
+                const result = prompt(promptText);
+                
+                if (result && !isNaN(result) && Number(result) > 0) {
+                    const form = this.closest('.add-to-pantry-form');
+                    form.querySelector('.container-quantity-input').value = result;
+                    form.submit();
+                } else if (result !== null) {
+                    alert('Please enter a valid number greater than 0.');
+                }
+            }
+        });
+    });
+
     document.querySelectorAll('.editable').forEach(span => {
         span.addEventListener('click', function() {
             if (this.querySelector('input')) return;

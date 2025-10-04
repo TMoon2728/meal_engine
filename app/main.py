@@ -215,11 +215,25 @@ def update_pantry():
     action = request.form.get('action')
     if action == 'add':
         ingredient_id = int(request.form.get('ingredient_id'))
+        ingredient = db.session.get(Ingredient, ingredient_id)
+        if not ingredient:
+            flash('Ingredient not found.', 'danger')
+            return redirect(url_for('main.list_ingredients'))
+
         if not PantryItem.query.filter_by(ingredient_id=ingredient_id, household_id=current_user.household_id).first():
-            new_item = PantryItem(ingredient_id=ingredient_id, quantity=float(request.form.get('quantity', 1)), unit=request.form.get('unit', ''), household_id=current_user.household_id)
+            quantity = float(request.form.get('container_quantity') or request.form.get('quantity', 1))
+            unit = ingredient.consumable_unit if ingredient.is_container else request.form.get('unit', '')
+
+            new_item = PantryItem(
+                ingredient_id=ingredient_id,
+                quantity=quantity,
+                unit=unit,
+                household_id=current_user.household_id
+            )
             db.session.add(new_item)
             award_achievement(current_user, 'Pantry Organizer')
             flash(f'"{new_item.ingredient.name}" added to pantry.', 'success')
+
     elif action == 'update_quantity':
         item = db.session.get(PantryItem, int(request.form.get('pantry_item_id')))
         if item and item.household_id == current_user.household_id:

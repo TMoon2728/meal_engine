@@ -75,9 +75,10 @@ class Ingredient(db.Model):
     category = db.Column(db.String(50), nullable=True, default='Pantry')
     recipe_links = db.relationship('RecipeIngredient', backref='ingredient', lazy=True)
     pantry_items = db.relationship('PantryItem', backref='ingredient', lazy=True)
-    # CORRECTED: Added server_default='false' to handle existing rows
+    
     is_container = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
-    container_prompt = db.Column(db.String(255), nullable=True, default='How many individual units are in this item?')
+    consumable_unit = db.Column(db.String(50), nullable=True)
+    container_prompt = db.Column(db.String(255), nullable=True)
 
 class RecipeIngredient(db.Model):
     id = db.Column(db.Integer, primary_key=True)

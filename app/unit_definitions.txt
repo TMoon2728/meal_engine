@@ -1,0 +1,66 @@
+# app/unit_definitions.txt
+
+# This file defines custom unit conversions and countable units for the Pint library.
+# The app knows standard units (gram, ounce, cup, etc.) by default. This file adds to that knowledge.
+# Format: new_unit_name = value * existing_unit_name
+
+# -----------------------------------------------------------------------------
+# Section 1: Standard Volume & Weight Equivalencies
+# We only need to define the new unit in terms of ONE existing unit.
+# Pint is smart enough to calculate the rest of the conversions from this.
+# -----------------------------------------------------------------------------
+stick_of_butter = 8 * tablespoon
+stick = stick_of_butter  # Alias for convenience
+
+# -----------------------------------------------------------------------------
+# Section 2: Approximate 'Folk' or Imprecise Measures
+# -----------------------------------------------------------------------------
+pinch = 1/16 * teaspoon
+dash = 1/8 * teaspoon
+smidgen = 1/32 * teaspoon
+drop = 1/96 * teaspoon
+
+# -----------------------------------------------------------------------------
+# Section 3: Countable, Dimensionless Units
+# These are for items that are counted, not measured by weight/volume.
+# -----------------------------------------------------------------------------
+slice = 1 * dimensionless
+slices = slice
+each = 1 * dimensionless
+clove = 1 * dimensionless
+cloves = clove
+head = 1 * dimensionless
+heads = head
+sprig = 1 * dimensionless
+sprigs = sprig
+bunch = 1 * dimensionless
+bunches = bunch
+stalk = 1 * dimensionless
+stalks = stalk
+ear = 1 * dimensionless
+ears = ear
+fillet = 1 * dimensionless
+fillets = fillet
+leaf = 1 * dimensionless
+leaves = leaf
+piece = 1 * dimensionless
+pieces = piece
+pat = 1 * dimensionless
+pats = pat
+link = 1 * dimensionless
+links = link
+strip = 1 * dimensionless
+strips = strip
+sheet = 1 * dimensionless
+sheets = sheet
+
+# -----------------------------------------------------------------------------
+# Section 4: Common Food-Specific Package Sizes (Approximations)
+# -----------------------------------------------------------------------------
+can_beans_15oz = 1.75 * cup
+can_tomatoes_14oz = 1.75 * cup
+can_tomatoes_28oz = 3.5 * cup
+can_tomato_paste_6oz = 0.75 * cup
+package_yeast = 2.25 * teaspoon
+envelope_yeast = package_yeast
+bouillon_cube = 1 * teaspoon
