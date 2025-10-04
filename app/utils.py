@@ -60,7 +60,11 @@ def convert_quantity_to_float(quantity_str):
         return 0.0
 
 # --- Unit Conversion (Pint) Setup ---
+# CORRECTED: Initialize with default units first.
 ureg = pint.UnitRegistry()
+# THEN load our custom definitions file, which adds to the defaults.
+ureg.load_definitions('app/unit_definitions.txt')
+
 
 cooking_conversions = {
     'all_purpose_flour': {'cup': '120 * gram'}, 'bread_flour': {'cup': '127 * gram'},
@@ -107,7 +111,8 @@ def sanitize_unit(unit_str):
         'tbsp': 'tablespoon', 'tbsps': 'tablespoon', 'tablespoons': 'tablespoon',
         'g': 'gram', 'grams': 'gram',
         'kg': 'kilogram', 'kgs': 'kilogram',
-        'ml': 'milliliter', 'milliliters': 'milliliter'
+        'ml': 'milliliter', 'milliliters': 'milliliter',
+        'stick': 'stick_of_butter'
     }
     return unit_map.get(unit_str, unit_str)
 

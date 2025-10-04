@@ -422,11 +422,12 @@ def profile():
     household_owner = current_user.household.members[0]
     member_limit = current_app.config['HOUSEHOLD_LIMITS'].get(household_owner.subscription_plan, 2)
     is_full = len(current_user.household.members) >= member_limit
+    is_unlimited = (member_limit == float('inf'))
 
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'generate_invite':
-            if is_full: return jsonify({'error': f"Your household is full."}), 403
+            if is_full and not is_unlimited: return jsonify({'error': f"Your household is full."}), 403
             HouseholdInvitation.query.filter_by(household_id=current_user.household_id).delete()
             token = str(uuid.uuid4())
             new_invitation = HouseholdInvitation(household_id=current_user.household_id, token=token, expires_at=datetime.utcnow() + timedelta(hours=24))
@@ -461,7 +462,13 @@ def profile():
     stores = GroceryStore.query.filter_by(household_id=current_user.household_id).order_by(GroceryStore.name).all()
     all_achievements = Achievement.query.order_by(Achievement.name).all()
     unlocked_achievement_ids = {ua.achievement_id for ua in current_user.achievements}
-    return render_template('profile.html', stores=stores, member_limit=member_limit, is_full=is_full, all_achievements=all_achievements, unlocked_achievement_ids=unlocked_achievement_ids)
+    return render_template('profile.html', 
+                           stores=stores, 
+                           member_limit=member_limit, 
+                           is_full=is_full,
+                           all_achievements=all_achievements,
+                           unlocked_achievement_ids=unlocked_achievement_ids,
+                           is_unlimited=is_unlimited)
 
 @main.route('/join-household/<token>')
 @login_required
@@ -555,9 +562,7 @@ def meal_plan():
     initial_tray_recipes_js = {}
     for r in initial_tray_recipes:
         tray_category = TRAY_CATEGORY_MAP.get(r.meal_type.strip().title() if r.meal_type else 'Main Course', 'Main Course')
-        if tray_category not in initial_tray_recipes_js:
-            initial_tray_recipes_js[tray_category] = []
-        initial_tray_recipes_js[tray_category].append({'id': r.id, 'name': r.name, 'meal_type': r.meal_type})
+        initial_tray_recipes_js.setdefault(tray_category, []).append({'id': r.id, 'name': r.name, 'meal_type': r.meal_type})
     
     historical_plans = HistoricalPlan.query.filter_by(household_id=current_user.household_id).order_by(HistoricalPlan.name).all()
     
