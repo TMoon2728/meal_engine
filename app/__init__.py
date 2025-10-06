@@ -42,7 +42,6 @@ STRIPE_PRICE_IDS = {
 
 def create_app():
     """Create and configure an instance of the Flask application."""
-    # When using an app package, Flask automatically looks for 'templates' and 'static' folders inside it.
     app = Flask(__name__)
 
     # --- CONFIGURATION ---
@@ -68,23 +67,19 @@ def create_app():
     login_manager.init_app(app)
     migrate.init_app(app, db)
     
-    # Configure Stripe API key
     stripe.api_key = app.config['STRIPE_SECRET_KEY']
 
     # --- WSGI MIDDLEWARE ---
-    # Correctly configure WhiteNoise to serve from the app's static folder
     app.wsgi_app = WhiteNoise(app.wsgi_app, root='app/static/')
 
     # --- BLUEPRINTS ---
     with app.app_context():
-        # Import models here to avoid circular imports
         from . import models
 
         @login_manager.user_loader
         def load_user(user_id):
             return db.session.get(models.User, int(user_id))
 
-        # Import and register blueprints
         from .main import main as main_blueprint
         app.register_blueprint(main_blueprint)
 
@@ -97,9 +92,10 @@ def create_app():
         from .payments import payments as payments_blueprint
         app.register_blueprint(payments_blueprint)
 
-        # Initialize achievements command
-        from .commands import init_achievements_command
+        # Register all commands
+        from .commands import init_achievements_command, nuke_ingredients_command
         app.cli.add_command(init_achievements_command)
+        app.cli.add_command(nuke_ingredients_command)
 
         # --- CONTEXT PROCESSORS & BEFORE REQUEST ---
         @app.context_processor
