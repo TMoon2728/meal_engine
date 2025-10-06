@@ -237,6 +237,37 @@ def update_ingredient_details():
         flash(f'Details for "{ingredient.name}" updated.', 'success')
     return redirect(url_for('main.list_ingredients', query=request.args.get('query', '')))
 
+@main.route('/ingredient/<int:ingredient_id>/delete', methods=['POST'])
+@login_required
+def delete_ingredient(ingredient_id):
+    ingredient = db.session.get(Ingredient, ingredient_id)
+    if not ingredient:
+        flash('Ingredient not found.', 'danger')
+        return redirect(url_for('main.list_ingredients'))
+
+    try:
+        household_recipe_ids = [recipe.id for recipe in current_user.household.recipes]
+        
+        RecipeIngredient.query.filter(
+            RecipeIngredient.ingredient_id == ingredient_id,
+            RecipeIngredient.recipe_id.in_(household_recipe_ids)
+        ).delete(synchronize_session=False)
+
+        PantryItem.query.filter_by(
+            ingredient_id=ingredient_id,
+            household_id=current_user.household_id
+        ).delete(synchronize_session=False)
+
+        db.session.delete(ingredient)
+        
+        db.session.commit()
+        flash(f'Successfully deleted "{ingredient.name}" and all its associations in your household.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'An error occurred while trying to delete the ingredient: {e}', 'danger')
+
+    return redirect(url_for('main.list_ingredients'))
+
 @main.route('/recipe/add', methods=['GET', 'POST'])
 @login_required
 def add_recipe():
@@ -253,9 +284,6 @@ def add_recipe():
 @login_required
 def view_recipe(recipe_id):
     recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
-    if recipe.name == "Schrödinger's Soufflé":
-        recipe.meal_type = random.choice(['Dessert', 'Snack', 'Side Dish'])
-        flash("By observing the soufflé, you've collapsed its wave function into a single state!", "info")
     return render_template('view_recipe.html', recipe=recipe)
 
 @main.route('/recipe/<int:recipe_id>/cook')
@@ -502,15 +530,6 @@ def join_household(token):
     db.session.commit()
     flash(f'You have successfully joined the "{invitation.household.name}" household!', 'success')
     return redirect(url_for('main.profile'))
-
-@main.route('/add-to-plan/<int:recipe_id>')
-@login_required
-def add_recipe_to_plan(recipe_id):
-    recipe = Recipe.query.filter_by(id=recipe_id, household_id=current_user.household_id).first_or_404()
-    db.session.add(MealPlan(meal_date=date.today(), recipe_id=recipe.id, household_id=current_user.household_id, meal_slot='Dinner'))
-    db.session.commit()
-    flash(f'"{recipe.name}" was added to your plan for dinner today!', 'success')
-    return redirect(url_for('main.meal_plan'))
 
 @main.route('/meal-plan', methods=['GET', 'POST'])
 @login_required

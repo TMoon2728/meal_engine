@@ -50,27 +50,29 @@
         <div class="row font-weight-bold border-bottom pb-2 mb-2 d-none d-md-flex">
             <div class="col-md-3">Ingredient</div>
             <div class="col-md-2">Category</div>
-            <div class="col-md-6">Container Settings</div>
-            <div class="col-md-1">Action</div>
+            <div class="col-md-5">Container Settings</div>
+            <div class="col-md-2">Actions</div>
         </div>
         {% for group in ingredient_data | groupby('ingredient.category') %}
             <h4 class="mt-4">{{ group.grouper or 'Uncategorized' }}</h4>
             <ul class="list-group list-group-flush">
                 {% for data in group.list %}
                     <li class="list-group-item">
-                        <form action="{{ url_for('main.update_ingredient_details') }}" method="POST">
-                        <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
                         <div class="row align-items-center ingredient-row">
                             <div class="col-md-3"><strong>{{ data.ingredient.name }}</strong></div>
                             
                             <div class="col-md-2">
-                                <select name="category" class="form-control form-control-sm">
-                                    {% for cat in categories %}<option value="{{ cat }}" {% if data.ingredient.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
-                                </select>
+                                <form action="{{ url_for('main.update_ingredient_details') }}" method="POST" class="d-inline">
+                                    <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
+                                    <select name="category" class="form-control form-control-sm" onchange="this.form.submit()">
+                                        {% for cat in categories %}<option value="{{ cat }}" {% if data.ingredient.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+                                    </select>
+                                </form>
                             </div>
 
-                            <div class="col-md-6">
-                                <div class="ingredient-details-form">
+                            <div class="col-md-5">
+                                <form action="{{ url_for('main.update_ingredient_details') }}" method="POST" class="ingredient-details-form">
+                                    <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
                                     <div class="form-check">
                                         <input type="checkbox" name="is_container" class="form-check-input" {% if data.ingredient.is_container %}checked{% endif %}>
                                         <label class="form-check-label small">Is Container?</label>
@@ -81,57 +83,53 @@
                                     <div class="form-group flex-grow-1">
                                         <input type="text" name="container_prompt" class="form-control form-control-sm" placeholder="Prompt Question" value="{{ data.ingredient.container_prompt or '' }}">
                                     </div>
-                                </div>
+                                    <button type="submit" class="btn btn-sm btn-secondary">Save</button>
+                                </form>
                             </div>
                             
-                            <div class="col-md-1 text-right">
-                                <button type="submit" class="btn btn-sm btn-secondary">Save</button>
+                            <div class="col-md-2 text-right">
+                                <form action="{{ url_for('main.pantry') }}" method="POST" class="add-to-pantry-form d-inline mr-2">
+                                    <input type="hidden" name="ingredient_id" value="{{ data.ingredient.id }}">
+                                    <input type="hidden" name="container_quantity" class="container-quantity-input">
+                                    <button type="submit" class="btn btn-sm btn-success add-pantry-btn"
+                                            data-is-container="{{ 'true' if data.ingredient.is_container else 'false' }}"
+                                            data-prompt="{{ data.ingredient.container_prompt or 'How many units are in this item?' }}"
+                                            data-unit="{{ data.ingredient.consumable_unit or '' }}">
+                                        Add to Pantry
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('main.delete_ingredient', ingredient_id=data.ingredient.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to PERMANENTLY delete \'{{ data.ingredient.name }}\'? This will also remove it from ALL of your recipes and your pantry.');">
+                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
                             </div>
                         </div>
-                        </form>
                     </li>
                 {% endfor %}
             </ul>
         {% endfor %}
+
         {% if not ingredient_data %}
             <p class="text-muted">No ingredients match your search.</p>
         {% endif %}
     </div>
 </div>
 
-<!-- THIS IS A HIDDEN FORM THAT THE JAVASCRIPT WILL USE TO SUBMIT -->
-<form id="add-to-pantry-hidden-form" action="{{ url_for('main.pantry') }}" method="POST" style="display: none;">
-    <input type="hidden" name="action" value="add">
-    <input type="hidden" name="ingredient_id" id="hidden-ingredient-id">
-    <input type="hidden" name="container_quantity" id="hidden-container-quantity">
-</form>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.add-pantry-btn').forEach(button => {
         button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const form = this.closest('form');
-            const ingredientId = form.querySelector('input[name="ingredient_id"]').value;
-            const isContainer = this.dataset.isContainer === 'true';
-            
-            const hiddenForm = document.getElementById('add-to-pantry-hidden-form');
-            hiddenForm.querySelector('#hidden-ingredient-id').value = ingredientId;
-
-            if (isContainer) {
-                const promptText = this.dataset.prompt || 'How many units are in this item?';
+            if (this.dataset.isContainer === 'true') {
+                e.preventDefault();
+                const promptText = this.dataset.prompt;
                 const result = prompt(promptText);
                 
                 if (result && !isNaN(result) && Number(result) > 0) {
-                    hiddenForm.querySelector('#hidden-container-quantity').value = result;
-                    hiddenForm.submit();
+                    const form = this.closest('.add-to-pantry-form');
+                    form.querySelector('.container-quantity-input').value = result;
+                    form.submit();
                 } else if (result !== null) {
                     alert('Please enter a valid number greater than 0.');
                 }
-            } else {
-                // For non-containers, just submit the form to add one item
-                hiddenForm.querySelector('#hidden-container-quantity').value = '1';
-                hiddenForm.submit();
             }
         });
     });
