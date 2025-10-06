@@ -54,11 +54,17 @@ ureg = pint.UnitRegistry()
 ureg.load_definitions('app/unit_definitions.txt')
 
 def sanitize_unit(unit_str):
+    """Sanitizes and maps common cooking units to Pint-compatible units."""
     if not unit_str:
         return "dimensionless"
+    
     cleaned_unit = unit_str.lower().strip().rstrip('s')
+    
+    # THIS IS THE CRITICAL FIX:
+    # Check if the unit is an empty string AFTER cleaning it.
     if not cleaned_unit:
         return "dimensionless"
+    
     unit_map = {
         'oz': 'fluid_ounce', 'ounce': 'fluid_ounce', 'lb': 'pound', 'cup': 'cup',
         'tsp': 'teaspoon', 'teaspoon': 'teaspoon', 'tbsp': 'tablespoon', 'tablespoon': 'tablespoon',
@@ -68,6 +74,7 @@ def sanitize_unit(unit_str):
         'piece': 'piece', 'pat': 'pat', 'link': 'link', 'strip': 'strip', 'sheet': 'sheet',
     }
     return unit_map.get(cleaned_unit, cleaned_unit)
+
 
 def consume_ingredients_from_recipe(user, recipe):
     updated, skipped = [], []
@@ -108,10 +115,12 @@ def consume_ingredients_from_recipe(user, recipe):
         except pint.errors.UndefinedUnitError as e:
             skipped.append(f"{pantry_item.ingredient.name} (The unit '{e.unit_name}' is not recognized)")
         except Exception as e:
+            # Add detailed logging so we never miss an error again
             logging.error(f"An unexpected error occurred during pantry deduction for item '{pantry_item.ingredient.name}': {e}", exc_info=True)
             skipped.append(f"{pantry_item.ingredient.name} (An unexpected error occurred: {repr(e)})")
     
     return updated, skipped
+
 
 # --- Email Utilities ---
 def send_reset_email(user_email):
