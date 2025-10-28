@@ -5,7 +5,7 @@ import random
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
-from flask import Blueprint, jsonify, request, flash, url_for, redirect
+from flask import Blueprint, jsonify, request, flash, url_for, redirect, current_app
 from flask_login import current_user, login_required
 from sqlalchemy import and_
 from datetime import date, timedelta, datetime
@@ -49,7 +49,8 @@ def ai_quick_add():
             prompt,
             generation_config=genai.types.GenerationConfig(
                 response_mime_type="application/json"
-            )
+            ),
+            request_options={"timeout": 25}
         )
         recipe_data = json.loads(response.text)
 
@@ -105,7 +106,8 @@ def ai_quick_add():
 
     except Exception as e:
         db.session.rollback()
-        flash('The AI failed to generate a valid recipe. Please try again.', 'danger')
+        current_app.logger.error(f"AI Quick Add failed for user {current_user.email}. Error: {e}", exc_info=True)
+        flash('The AI failed to generate a recipe. This can be due to a server timeout or an issue with the AI service. Please try your request again.', 'danger')
         
     return redirect(url_for('main.list_recipes'))
 
