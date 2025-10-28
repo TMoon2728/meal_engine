@@ -28,18 +28,16 @@ except Exception as e:
 @login_required
 @require_ai_credits
 def ai_quick_add():
-    recipe_name = request.form.get('recipe_name')
-    if not recipe_name:
-        flash('Please enter a recipe name.', 'warning')
-        return redirect(url_for('main.list_recipes'))
-    if Recipe.query.filter_by(name=recipe_name, household_id=current_user.household_id).first():
-        flash('A recipe with this name already exists.', 'info')
+    ai_request_text = request.form.get('ai_request')
+    if not ai_request_text:
+        flash('Please enter a recipe request.', 'warning')
         return redirect(url_for('main.list_recipes'))
 
     prompt = f"""
-        Generate a standard recipe for "{recipe_name}".
+        Generate a creative and delicious recipe based on the following user request: "{ai_request_text}".
+        Give the recipe a suitable, creative name based on the request.
         Your output must be a single, valid JSON object with the following keys:
-        - "name": The title of the recipe.
+        - "name": The creative title of the recipe.
         - "instructions": A single string with steps separated by '\\n'.
         - "meal_type": Must be one of 'Main Course', 'Side Dish', 'Dessert', 'Snack', or 'Meal Prep'.
         - "ingredients": An array of objects, where each object has "name", "quantity", and "unit".
@@ -56,7 +54,11 @@ def ai_quick_add():
         recipe_data = json.loads(response.text)
 
         if not recipe_data.get('name') or not recipe_data.get('instructions') or not recipe_data.get('ingredients'):
-            flash('The AI returned an incomplete recipe. Please try a different name.', 'warning')
+            flash('The AI returned an incomplete recipe. Please try a different request.', 'warning')
+            return redirect(url_for('main.list_recipes'))
+        
+        if Recipe.query.filter_by(name=recipe_data['name'], household_id=current_user.household_id).first():
+            flash(f'A recipe named "{recipe_data["name"]}" already exists. The AI generated a duplicate name.', 'info')
             return redirect(url_for('main.list_recipes'))
 
         new_recipe = Recipe(
