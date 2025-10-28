@@ -44,7 +44,7 @@ def ai_quick_add():
     """
     
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.0-pro')
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
@@ -133,7 +133,7 @@ def import_and_create_recipe():
         if len(page_text) < 150:
              return jsonify({'error': 'Could not extract enough readable content.'}), 400
         
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.0-pro')
         
         recipe_prompt = (f"""
             Analyze the following text from a recipe webpage and extract the recipe details.
@@ -254,7 +254,7 @@ def build_plan_api():
     final_prompt = (f"Create a diverse and logical meal plan with theme: '{theme}'.\n{instruction}{prompt_context}\n\n{'\n\n'.join(prompt_sections)}\n\n{json_structure}")
     
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.0-pro')
         response = model.generate_content(final_prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"))
         plan_data = json.loads(response.text.strip())
 
@@ -339,7 +339,7 @@ def generate_from_ingredients_api():
     if not ingredients_text.strip(): return jsonify({'error': 'Please enter some ingredients.'}), 400
     prompt = f"You are a creative chef with: {ingredients_text}. Invent a practical recipe using them. Assume basic staples. Provide a complete recipe: name, ingredient list, and instructions."
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.0-pro')
         response = model.generate_content(prompt)
         deduct_ai_credit(current_user)
         db.session.commit()
@@ -361,7 +361,7 @@ def remix_recipe_api():
               "\"instructions\" (a single string with steps separated by '\\n'), "
               "\"ingredients\" (an array of objects with \"name\", \"quantity\", \"unit\").")
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.0-pro')
         response = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"))
         remixed_data = json.loads(response.text)
         if not all(k in remixed_data for k in ['name', 'instructions', 'ingredients']): raise ValueError("Missing keys.")
