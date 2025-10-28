@@ -70,17 +70,24 @@ def ai_quick_add():
         )
         db.session.add(new_recipe)
         db.session.flush()
-
+        
+        ingredient_cache = {}
         for ing_data in recipe_data['ingredients']:
             ingredient_name = ing_data.get('name', '').strip()
             if not ingredient_name: continue
-
-            ingredient_obj = Ingredient.query.filter(db.func.lower(Ingredient.name) == db.func.lower(ingredient_name)).first()
-            if not ingredient_obj:
-                ingredient_obj = Ingredient(name=ingredient_name)
-                db.session.add(ingredient_obj)
-                db.session.flush()
             
+            lower_ingredient_name = ingredient_name.lower()
+            
+            if lower_ingredient_name in ingredient_cache:
+                ingredient_obj = ingredient_cache[lower_ingredient_name]
+            else:
+                ingredient_obj = Ingredient.query.filter(db.func.lower(Ingredient.name) == lower_ingredient_name).first()
+                if not ingredient_obj:
+                    ingredient_obj = Ingredient(name=ingredient_name)
+                    db.session.add(ingredient_obj)
+                    db.session.flush()
+                ingredient_cache[lower_ingredient_name] = ingredient_obj
+
             quantity_val = convert_quantity_to_float(ing_data.get('quantity', '0'))
             
             recipe_ingredient = RecipeIngredient(
