@@ -13,6 +13,7 @@
     
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <meta name="theme-color" content="#3a7bd5"/>
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" type="image/png">
     
     <title>Meal Engine</title>
 
@@ -62,7 +63,9 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark no-print">
       <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('main.index') }}" id="navbar-brand-logo">Meal Engine</a>
+        <a class="navbar-brand" href="{{ url_for('main.index') }}" id="navbar-brand-logo">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Meal Engine Logo" style="height: 40px;">
+        </a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
